@@ -86,6 +86,15 @@ def _fetch_yfinance_price(symbol):
     raise ValueError("yfinanceの応答に株価がありません。")
 
 
+def _fetch_yfinance_name(symbol):
+    """yfinanceから銀柄名を取得する。"""
+    info = yf.Ticker(symbol).info
+    name = info.get("longName") or info.get("shortName")
+    if not name:
+        raise ValueError("yfinanceの応答に銀柄名がありません。")
+    return str(name)
+
+
 def fetch_current_quote(code):
     """銘柄コードからYahooシンボル、meta、現在値を返す。"""
     symbol = get_yahoo_symbol(code)
@@ -109,7 +118,12 @@ def fetch_current_quote(code):
     ) as direct_error:
         try:
             price = _fetch_yfinance_price(symbol)
-            return symbol, {"symbol": symbol, "regularMarketPrice": price}, price
+            meta = {"symbol": symbol, "regularMarketPrice": price}
+            try:
+                meta["longName"] = _fetch_yfinance_name(symbol)
+            except Exception:
+                pass
+            return symbol, meta, price
         except Exception as fallback_error:
             raise RuntimeError(
                 f"{symbol} の株価を取得できませんでした。"

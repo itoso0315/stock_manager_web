@@ -176,12 +176,17 @@ class YahooCurrentPriceTest(unittest.TestCase):
                 "services.market_data_service._fetch_yfinance_price",
                 return_value=2_850.0,
             ) as fallback,
+            patch(
+                "services.market_data_service._fetch_yfinance_name",
+                return_value="キオクシアホールディングス",
+            ),
         ):
             symbol, meta, price = market_data_service.fetch_current_quote("285A")
 
         self.assertEqual(symbol, "285A.T")
         self.assertEqual(price, 2_850.0)
         self.assertEqual(meta["regularMarketPrice"], 2_850.0)
+        self.assertEqual(meta["longName"], "キオクシアホールディングス")
         fallback.assert_called_once_with("285A.T")
 
     def test_yfinance_price_accepts_current_camel_case_keys(self):
@@ -191,6 +196,17 @@ class YahooCurrentPriceTest(unittest.TestCase):
             price = market_data_service._fetch_yfinance_price("285A.T")
 
         self.assertEqual(price, 2_850.0)
+
+    def test_yfinance_name_uses_long_name(self):
+        ticker = MagicMock()
+        ticker.info = {
+            "longName": "Kioxia Holdings Corporation",
+            "shortName": "KIOXIA HOLDINGS",
+        }
+        with patch("services.market_data_service.yf.Ticker", return_value=ticker):
+            name = market_data_service._fetch_yfinance_name("285A.T")
+
+        self.assertEqual(name, "Kioxia Holdings Corporation")
 
     def test_converts_empty_result_to_runtime_error(self):
         self.assert_fetch_error(data={"chart": {"result": []}})

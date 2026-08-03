@@ -164,7 +164,18 @@ prices_updated = False
 
 for stock in stocks:
     try:
-        stock["current_price"] = fetch_current_price(stock["code"])
+        placeholder_names = {
+            stock["code"],
+            get_yahoo_symbol(stock["code"]),
+        }
+        if not stock.get("name") or stock["name"] in placeholder_names:
+            refreshed_info = fetch_stock_info(stock["code"])
+            stock["name"] = refreshed_info["name"]
+            stock["current_price"] = refreshed_info["price"]
+            stock["dividend_yield"] = refreshed_info["dividend_yield"]
+            stock["dividend_months"] = refreshed_info["dividend_months"]
+        else:
+            stock["current_price"] = fetch_current_price(stock["code"])
         stock["price_updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         prices_updated = True
     except RuntimeError:
@@ -239,8 +250,7 @@ stock_tab, allocation_tab, buying_power_tab, settings_tab = st.tabs(
 with stock_tab:
     st.subheader("📋 銘柄管理")
     st.caption(
-        "候補銘柄を保有銘柄へ移すと購入。"
-        "保有銘柄を候補銘柄へ移すと全売却。"
+        "候補銘柄は「購入する」、保有銘柄は「全売却する」から操作できます。"
     )
 
     with st.expander("➕ 新しい銘柄を候補銘柄に追加", expanded=not stocks):
@@ -310,7 +320,11 @@ def stock_card_label(
     name_width=40,
 ):
     current_price = stock.get("current_price", stock["average_price"])
-    stock_name = f"{stock['name']}（{stock['code']}）"
+    name_width_without_code = max(name_width - 8, 1)
+    visible_name = fit_text(
+        stock["name"], name_width_without_code
+    ).rstrip()
+    stock_name = f"{visible_name}（{stock['code']}）"
     evaluation_value = current_price * stock["shares"]
 
     profit_loss = (current_price - stock["average_price"]) * stock["shares"]
@@ -507,6 +521,119 @@ past_table_header = (
 )
 
 with stock_tab:
+    st.markdown("#### 🟢 保有銀柄")
+    if held_stocks:
+        held_table_rows = []
+        for stock in held_stocks:
+            current_price = stock.get(
+                "current_price", stock["average_price"]
+            )
+            evaluation_value = current_price * stock["shares"]
+            stock_profit = (
+                current_price - stock["average_price"]
+            ) * stock["shares"]
+            profit_rate = (
+                (current_price - stock["average_price"])
+                / stock["average_price"]
+                * 100
+                if stock["average_price"] > 0
+                else 0
+            )
+            held_table_rows.append({
+                "銀柄名（コード）": (
+                    f"{stock['name']}（{stock['code']}）"
+                ),
+                "平均取得": f"{stock['average_price']:,.0f}円",
+                "現在値": f"{current_price:,.0f}円",
+                "保有数": f"{stock['shares']:,}株",
+                "評価額": f"{evaluation_value:,.0f}円",
+                "評価損益": f"{stock_profit:+,.0f}円",
+                "損益率": f"{profit_rate:+.1f}%",
+            })
+
+        st.dataframe(
+            held_table_rows,
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "銀柄名（コード）": st.column_config.TextColumn(
+                    width="large"
+                ),
+            },
+        )
+        held_by_code = {stock["code"]: stock for stock in held_stocks}
+        held_action_col, held_button_col = st.columns([3, 1])
+        with held_action_col:
+            sell_stock_code = st.selectbox(
+                "全売却する銀柄",
+                options=list(held_by_code),
+                format_func=lambda code: (
+                    f"{held_by_code[code]['name']}（{code}）"
+                ),
+                key="sell_stock_select",
+            )
+        with held_button_col:
+            st.write("")
+            if st.button(
+                "全売却する",
+                key="sell_stock_button",
+                width="stretch",
+            ):
+                st.session_state["pending_sale_code"] = sell_stock_code
+    else:
+        st.info("保有銀柄はありません。")
+
+    st.markdown("#### 🟠 候補銀柄")
+    if past_stocks:
+        candidate_table_rows = [
+            {
+                "銀柄名（コード）": (
+                    f"{stock['name']}（{stock['code']}）"
+                ),
+                "現在値": (
+                    f"{stock.get('current_price', stock['average_price']):,.0f}円"
+                ),
+                "保有数": f"{stock['shares']:,}株",
+            }
+            for stock in past_stocks
+        ]
+        st.dataframe(
+            candidate_table_rows,
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "銀柄名（コード）": st.column_config.TextColumn(
+                    width="large"
+                ),
+            },
+        )
+        candidate_by_code = {
+            stock["code"]: stock for stock in past_stocks
+        }
+        candidate_action_col, candidate_button_col = st.columns([3, 1])
+        with candidate_action_col:
+            purchase_stock_code = st.selectbox(
+                "購入する候補銀柄",
+                options=list(candidate_by_code),
+                format_func=lambda code: (
+                    f"{candidate_by_code[code]['name']}（{code}）"
+                ),
+                key="purchase_stock_select",
+            )
+        with candidate_button_col:
+            st.write("")
+            if st.button(
+                "購入する",
+                key="purchase_stock_button",
+                type="primary",
+                width="stretch",
+            ):
+                st.session_state["pending_purchase_code"] = (
+                    purchase_stock_code
+                )
+    else:
+        st.info("候補銀柄はありません。")
+
     sorted_stock_lists = sort_items(
         [
             {"header": "保有銘柄", "items": held_labels},
@@ -517,7 +644,7 @@ with stock_tab:
         key=f"stock_board_{st.session_state.get('stock_board_version', 0)}",
         custom_style="""
     .sortable-component.vertical {
-        display: grid;
+        display: none !important;
         grid-template-columns: minmax(0, 1fr);
         gap: 1rem;
         align-items: stretch;
