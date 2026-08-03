@@ -1,9 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import unicodedata
 
 
 INITIAL_CAPITAL = 10_000_000
+DIVIDEND_REFRESH_INTERVAL = timedelta(hours=24)
 JAPANESE_STOCK_CODE_PATTERN = re.compile(
     r"^[0-9][0-9ACDFGHJKLMNPRSTUWXY][0-9][0-9ACDFGHJKLMNPRSTUWXY]$"
 )
@@ -19,7 +20,25 @@ def normalize_stock_code(value):
     return normalize_input(value).strip().upper()
 
 
+def should_refresh_dividend(stock, now=None):
+    """未取得または最終取得から24時間経過した配当情報を更新対象にする。"""
+    if stock.get("dividend_yield") is None:
+        return True
+    updated_at_text = stock.get("dividend_updated_at")
+    if not updated_at_text:
+        return True
+    current_time = now or datetime.now().astimezone()
+    try:
+        updated_at = datetime.fromisoformat(updated_at_text)
+    except (TypeError, ValueError):
+        return True
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=current_time.tzinfo)
+    return current_time - updated_at >= DIVIDEND_REFRESH_INTERVAL
+
+
 def create_stock(code, stock_info, shares, average_price):
+    updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
     stock = {
         "name": stock_info["name"],
         "code": code,
@@ -27,15 +46,18 @@ def create_stock(code, stock_info, shares, average_price):
         "current_price": stock_info["price"],
         "dividend_yield": stock_info["dividend_yield"],
         "dividend_months": stock_info.get("dividend_months", []),
-        "price_updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "price_updated_at": updated_at,
     }
+    if stock_info["dividend_yield"] is not None:
+        stock["dividend_updated_at"] = updated_at
     add_purchase(stock, shares, average_price)
     return stock
 
 
 def create_candidate(code, stock_info):
     """売買履歴を持たない候補銘柄を作る。"""
-    return {
+    updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    candidate = {
         "name": stock_info["name"],
         "code": code,
         "shares": 0,
@@ -44,8 +66,11 @@ def create_candidate(code, stock_info):
         "current_price": stock_info["price"],
         "dividend_yield": stock_info["dividend_yield"],
         "dividend_months": stock_info.get("dividend_months", []),
-        "price_updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "price_updated_at": updated_at,
     }
+    if stock_info["dividend_yield"] is not None:
+        candidate["dividend_updated_at"] = updated_at
+    return candidate
 
 
 def add_purchase(stock, shares, price):

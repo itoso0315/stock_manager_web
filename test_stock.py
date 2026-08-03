@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from stock import (
     INITIAL_CAPITAL,
@@ -9,6 +10,7 @@ from stock import (
     normalize_stock_code,
     reset_portfolio,
     set_share_count,
+    should_refresh_dividend,
 )
 
 
@@ -46,6 +48,32 @@ class CashBalanceTest(unittest.TestCase):
         ]
 
         self.assertEqual(cash_balance(stocks), INITIAL_CAPITAL - 100_000 + 24_000 - 20_000)
+
+
+class DividendRefreshTest(unittest.TestCase):
+    def setUp(self):
+        self.now = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
+
+    def test_refreshes_when_yield_was_not_obtained(self):
+        self.assertTrue(
+            should_refresh_dividend({"dividend_yield": None}, now=self.now)
+        )
+
+    def test_refreshes_when_last_update_is_old(self):
+        stock = {
+            "dividend_yield": 2.5,
+            "dividend_updated_at": (self.now - timedelta(hours=25)).isoformat(),
+        }
+
+        self.assertTrue(should_refresh_dividend(stock, now=self.now))
+
+    def test_keeps_recently_obtained_yield(self):
+        stock = {
+            "dividend_yield": 0.0,
+            "dividend_updated_at": (self.now - timedelta(hours=2)).isoformat(),
+        }
+
+        self.assertFalse(should_refresh_dividend(stock, now=self.now))
 
 
 class SetShareCountTest(unittest.TestCase):

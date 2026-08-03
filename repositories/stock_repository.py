@@ -24,7 +24,7 @@ class StockRepository:
                     CREATE TABLE IF NOT EXISTS stocks (
                         id INTEGER PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL UNIQUE,
                         shares INTEGER NOT NULL, average_price REAL NOT NULL, current_price REAL,
-                        dividend_yield REAL, price_updated_at TEXT
+                        dividend_yield REAL, price_updated_at TEXT, dividend_updated_at TEXT
                     );
                     CREATE TABLE IF NOT EXISTS purchases (
                         id INTEGER PRIMARY KEY, stock_id INTEGER NOT NULL, shares INTEGER NOT NULL, price REAL NOT NULL,
@@ -54,6 +54,10 @@ class StockRepository:
                 if "dividend_months" not in stock_columns:
                     connection.execute(
                         "ALTER TABLE stocks ADD COLUMN dividend_months TEXT"
+                    )
+                if "dividend_updated_at" not in stock_columns:
+                    connection.execute(
+                        "ALTER TABLE stocks ADD COLUMN dividend_updated_at TEXT"
                     )
                 stock_rows = connection.execute(
                     "SELECT id FROM stocks"
@@ -130,6 +134,8 @@ class StockRepository:
                     stock["current_price"] = row["current_price"]
                 if row["price_updated_at"] is not None:
                     stock["price_updated_at"] = row["price_updated_at"]
+                if row["dividend_updated_at"] is not None:
+                    stock["dividend_updated_at"] = row["dividend_updated_at"]
                 stocks.append(stock)
             return stocks
         finally:
@@ -147,8 +153,9 @@ class StockRepository:
                     """
                     INSERT INTO stocks (
                         name, code, shares, average_price, current_price,
-                        dividend_yield, price_updated_at, dividend_months
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        dividend_yield, price_updated_at, dividend_months,
+                        dividend_updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         stock["name"],
@@ -159,6 +166,7 @@ class StockRepository:
                         stock.get("dividend_yield"),
                         stock.get("price_updated_at"),
                         json.dumps(stock.get("dividend_months", [])),
+                        stock.get("dividend_updated_at"),
                     ),
                 )
                 for transaction in stock.get("transactions", []):

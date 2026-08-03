@@ -462,6 +462,7 @@ class StockRepositoryTest(unittest.TestCase):
         stock["dividend_months"] = [3, 9]
         stock["current_price"] = None
         stock["price_updated_at"] = None
+        stock["dividend_updated_at"] = "2026-08-03T12:00:00+09:00"
 
         self.repository.save_stocks([stock])
 
@@ -469,7 +470,8 @@ class StockRepositoryTest(unittest.TestCase):
         try:
             row = connection.execute(
                 """
-                SELECT dividend_months, current_price, price_updated_at
+                SELECT dividend_months, current_price, price_updated_at,
+                       dividend_updated_at
                 FROM stocks
                 """
             ).fetchone()
@@ -478,6 +480,9 @@ class StockRepositoryTest(unittest.TestCase):
         self.assertEqual(row["dividend_months"], "[3, 9]")
         self.assertIsNone(row["current_price"])
         self.assertIsNone(row["price_updated_at"])
+        self.assertEqual(
+            row["dividend_updated_at"], "2026-08-03T12:00:00+09:00"
+        )
 
     def test_save_multiple_stocks_and_their_transactions(self):
         self.repository.initialize_database(DEFAULT_INITIAL_CAPITAL)

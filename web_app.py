@@ -6,6 +6,7 @@ import plotly.express as px
 
 from api import (
     fetch_current_price,
+    fetch_dividend_yield,
     fetch_stock_info,
     get_yahoo_symbol,
     search_japanese_stocks,
@@ -31,6 +32,7 @@ from stock import (
     normalize_input,
     normalize_stock_code,
     set_share_count,
+    should_refresh_dividend,
 )
 from web_navigation import render_sidebar_navigation
 
@@ -266,6 +268,7 @@ prices_updated = False
 
 for stock in stocks:
     try:
+        refreshed_at = datetime.now().astimezone().isoformat(timespec="seconds")
         placeholder_names = {
             stock["code"],
             get_yahoo_symbol(stock["code"]),
@@ -275,11 +278,20 @@ for stock in stocks:
             refreshed_info = fetch_stock_info(stock["code"])
             stock["name"] = refreshed_info["name"]
             stock["current_price"] = refreshed_info["price"]
-            stock["dividend_yield"] = refreshed_info["dividend_yield"]
+            if refreshed_info["dividend_yield"] is not None:
+                stock["dividend_yield"] = refreshed_info["dividend_yield"]
+                stock["dividend_updated_at"] = refreshed_at
             stock["dividend_months"] = refreshed_info["dividend_months"]
         else:
             stock["current_price"] = fetch_current_price(stock["code"])
-        stock["price_updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+            if should_refresh_dividend(stock):
+                refreshed_yield = fetch_dividend_yield(
+                    stock["code"], stock["current_price"]
+                )
+                if refreshed_yield is not None:
+                    stock["dividend_yield"] = refreshed_yield
+                    stock["dividend_updated_at"] = refreshed_at
+        stock["price_updated_at"] = refreshed_at
         prices_updated = True
     except RuntimeError:
         price_update_failures.append(stock["name"])
@@ -833,7 +845,7 @@ with stock_tab:
             "評価額",
             "評価損益",
             "損益率",
-            "操作",
+            "売買",
         ]
         held_header_columns = st.columns(held_widths)
         for column, label in zip(held_header_columns, held_headers):
@@ -871,7 +883,7 @@ with stock_tab:
                     with row_columns[index]:
                         render_stock_cell(value, numeric=index > 0, tone="held")
                 with row_columns[-1]:
-                    with st.popover("操作", width="stretch"):
+                    with st.popover("売買", width="stretch"):
                         if st.button(
                             "追加購入",
                             key=f"add_purchase_{stock['code']}",
@@ -1051,41 +1063,11 @@ with allocation_tab:
     allocation_held_stocks = [
         stock for stock in stocks if stock["shares"] > 0
     ]
-    largest_holding = max(
-        allocation_held_stocks,
-        key=lambda stock: (
-            stock["shares"]
-            * stock.get("current_price", stock["average_price"])
-        ),
-        default=None,
-    )
-
-    investment_col, count_col, largest_col = st.columns(3)
+    investment_col, count_col = st.columns(2)
     with investment_col:
         st.metric("投資中の資産", f"{stock_value:,.0f}円")
     with count_col:
         st.metric("保有銘柄数", f"{len(allocation_held_stocks)}銘柄")
-    with largest_col:
-        if largest_holding is not None:
-            largest_holding_value = (
-                largest_holding["shares"]
-                * largest_holding.get(
-                    "current_price",
-                    largest_holding["average_price"],
-                )
-            )
-            largest_holding_ratio = (
-                largest_holding_value / stock_value * 100
-                if stock_value > 0
-                else 0
-            )
-            largest_holding_display = (
-                f"{largest_holding['name']} "
-                f"{largest_holding_ratio:.1f}%"
-            )
-        else:
-            largest_holding_display = "該当なし"
-        st.metric("最大保有銘柄", largest_holding_display)
 
     st.divider()
 
