@@ -1,6 +1,18 @@
 import unittest
 
-from stock import INITIAL_CAPITAL, cash_balance, create_candidate, reset_portfolio, set_share_count
+from stock import (
+    INITIAL_CAPITAL,
+    cash_balance,
+    create_candidate,
+    normalize_input,
+    reset_portfolio,
+    set_share_count,
+)
+
+
+class NormalizeInputTest(unittest.TestCase):
+    def test_normalizes_full_width_alphanumeric_stock_code(self):
+        self.assertEqual(normalize_input("２８５ａ").strip().upper(), "285A")
 
 
 class CashBalanceTest(unittest.TestCase):

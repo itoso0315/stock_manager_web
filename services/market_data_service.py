@@ -16,9 +16,11 @@ SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 JAPANESE_STOCK_CODE_PATTERN = re.compile(
     r"^[0-9][0-9A-Z][0-9][0-9A-Z]$"
 )
-YAHOO_CHART_URL = (
+YAHOO_CHART_URLS = (
     "https://query1.finance.yahoo.com/v8/finance/chart/"
-    "{symbol}?range=1d&interval=1m"
+    "{symbol}?range=1d&interval=1m",
+    "https://query2.finance.yahoo.com/v8/finance/chart/"
+    "{symbol}?range=1d&interval=1m",
 )
 YAHOO_USER_AGENT = "stock-manager/1.0"
 
@@ -31,24 +33,44 @@ def get_yahoo_symbol(code):
     return normalized_code
 
 
-def _build_yahoo_chart_url(symbol):
+def _build_yahoo_chart_url(symbol, base_url=None):
     """Yahoo Financeの現在値取得URLを返す。"""
-    return YAHOO_CHART_URL.format(symbol=symbol)
+    return (base_url or YAHOO_CHART_URLS[0]).format(symbol=symbol)
 
 
 def _fetch_yahoo_chart_meta(symbol):
-    """Yahoo FinanceのチャートAPIからmeta情報を取得する。"""
-    request = Request(
-        _build_yahoo_chart_url(symbol),
-        headers={"User-Agent": YAHOO_USER_AGENT},
-    )
-    with urlopen(
-        request,
-        timeout=10,
-        context=SSL_CONTEXT,
-    ) as response:
-        data = json.load(response)
-    return data["chart"]["result"][0]["meta"]
+    """Yahoo FinanceのチャートAPIからmeta情報を取得する。
+
+    query1が一時的に拒否・失敗する場合に備え、query2へ切り替える。
+    """
+    last_error = None
+    for chart_url in YAHOO_CHART_URLS:
+        request = Request(
+            _build_yahoo_chart_url(symbol, chart_url),
+            headers={"User-Agent": YAHOO_USER_AGENT},
+        )
+        try:
+            with urlopen(
+                request,
+                timeout=10,
+                context=SSL_CONTEXT,
+            ) as response:
+                data = json.load(response)
+            return data["chart"]["result"][0]["meta"]
+        except (
+            HTTPError,
+            URLError,
+            TimeoutError,
+            KeyError,
+            IndexError,
+            TypeError,
+            ValueError,
+        ) as error:
+            last_error = error
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Yahoo Financeの取得先が設定されていません。")
 
 
 def fetch_current_quote(code):

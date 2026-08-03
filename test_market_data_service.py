@@ -80,6 +80,30 @@ class YahooCurrentPriceTest(unittest.TestCase):
             market_data_service.SSL_CONTEXT,
         )
 
+    def test_retries_alphanumeric_code_on_query2(self):
+        second_response = MagicMock()
+        second_response.__enter__.return_value = second_response
+        second_response.__exit__.return_value = False
+        temporary_error = URLError("query1 temporarily unavailable")
+
+        with (
+            patch(
+                "services.market_data_service.urlopen",
+                side_effect=[temporary_error, second_response],
+            ) as urlopen,
+            patch(
+                "services.market_data_service.json.load",
+                return_value=yahoo_chart_data({"regularMarketPrice": 2_850}),
+            ),
+        ):
+            symbol, _, price = market_data_service.fetch_current_quote("285A")
+
+        self.assertEqual(symbol, "285A.T")
+        self.assertEqual(price, 2_850.0)
+        self.assertEqual(urlopen.call_count, 2)
+        self.assertIn("query1.finance.yahoo.com", urlopen.call_args_list[0].args[0].full_url)
+        self.assertIn("query2.finance.yahoo.com", urlopen.call_args_list[1].args[0].full_url)
+
     def assert_fetch_error(self, side_effect=None, data=None):
         with (
             patch(

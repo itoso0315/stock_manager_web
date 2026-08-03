@@ -6,7 +6,7 @@ INITIAL_CAPITAL = 10_000_000
 
 
 def normalize_input(value):
-    """全角数字を含む入力を半角へ正規化する。"""
+    """全角の数字・英字を含む入力を半角へ正規化する。"""
     return unicodedata.normalize("NFKC", value)
 
 

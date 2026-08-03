@@ -241,9 +241,9 @@ with stock_tab:
         with st.form("add_stock_form", clear_on_submit=True):
             stock_code_input = st.text_input(
                 "日本株の銘柄コード",
-                placeholder="例：7203",
+                placeholder="例：7203、２８５ａ",
                 max_chars=4,
-                help="4文字の銘柄コードを入力してください。",
+                help="全角の数字・英字にも対応しています。4文字で入力してください。",
             )
             add_stock_submitted = st.form_submit_button(
                 "銘柄を追加", type="primary", width="stretch"
@@ -506,9 +506,20 @@ with stock_tab:
         background: #fff7ed;
     }
     .sortable-container-header {
-        padding: 0.35rem 0.5rem 0.75rem;
-        font-weight: 700;
-        background: transparent;
+        margin-bottom: 0.6rem;
+        padding: 0.55rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 1.05rem;
+        line-height: 1.35;
+        font-weight: 800;
+    }
+    .sortable-container:first-of-type .sortable-container-header {
+        background: #d1fae5 !important;
+        color: #14532d !important;
+    }
+    .sortable-container:nth-of-type(2) .sortable-container-header {
+        background: #ffedd5 !important;
+        color: #7c2d12 !important;
     }
     .sortable-container-body {
         flex: 1;
