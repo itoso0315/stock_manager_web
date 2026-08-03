@@ -250,7 +250,8 @@ stock_tab, allocation_tab, buying_power_tab, settings_tab = st.tabs(
 with stock_tab:
     st.subheader("📋 銘柄管理")
     st.caption(
-        "候補銘柄は「購入する」、保有銘柄は「全売却する」から操作できます。"
+        "候補銘柄を保有銘柄へ移すと購入。"
+        "保有銘柄を候補銘柄へ移すと全売却。"
     )
 
     with st.expander("➕ 新しい銘柄を候補銘柄に追加", expanded=not stocks):
@@ -431,11 +432,11 @@ def show_sell_all_dialog(stock):
             st.rerun()
 
 
-@st.dialog("候補銀柄の削除")
+@st.dialog("候補銘柄の削除")
 def show_delete_candidate_dialog(stock):
     st.write(f"**{stock['name']}（{stock['code']}）**")
     st.warning(
-        "この候補銀柄を一覧から削除します。"
+        "この候補銘柄を一覧から削除します。"
         "過去の売買履歴も削除され、元に戻せません。"
     )
 
@@ -456,7 +457,7 @@ def show_delete_candidate_dialog(stock):
             st.session_state.pop("pending_delete_candidate_code", None)
             reset_stock_board()
             st.session_state["candidate_deleted_message"] = (
-                f"{stock['name']}（{stock['code']}）を候補銀柄から削除しました。"
+                f"{stock['name']}（{stock['code']}）を候補銘柄から削除しました。"
             )
             st.rerun()
 
@@ -519,121 +520,7 @@ past_table_header = (
         ]
     )
 )
-
 with stock_tab:
-    st.markdown("#### 🟢 保有銀柄")
-    if held_stocks:
-        held_table_rows = []
-        for stock in held_stocks:
-            current_price = stock.get(
-                "current_price", stock["average_price"]
-            )
-            evaluation_value = current_price * stock["shares"]
-            stock_profit = (
-                current_price - stock["average_price"]
-            ) * stock["shares"]
-            profit_rate = (
-                (current_price - stock["average_price"])
-                / stock["average_price"]
-                * 100
-                if stock["average_price"] > 0
-                else 0
-            )
-            held_table_rows.append({
-                "銀柄名（コード）": (
-                    f"{stock['name']}（{stock['code']}）"
-                ),
-                "平均取得": f"{stock['average_price']:,.0f}円",
-                "現在値": f"{current_price:,.0f}円",
-                "保有数": f"{stock['shares']:,}株",
-                "評価額": f"{evaluation_value:,.0f}円",
-                "評価損益": f"{stock_profit:+,.0f}円",
-                "損益率": f"{profit_rate:+.1f}%",
-            })
-
-        st.dataframe(
-            held_table_rows,
-            hide_index=True,
-            width="stretch",
-            column_config={
-                "銀柄名（コード）": st.column_config.TextColumn(
-                    width="large"
-                ),
-            },
-        )
-        held_by_code = {stock["code"]: stock for stock in held_stocks}
-        held_action_col, held_button_col = st.columns([3, 1])
-        with held_action_col:
-            sell_stock_code = st.selectbox(
-                "全売却する銀柄",
-                options=list(held_by_code),
-                format_func=lambda code: (
-                    f"{held_by_code[code]['name']}（{code}）"
-                ),
-                key="sell_stock_select",
-            )
-        with held_button_col:
-            st.write("")
-            if st.button(
-                "全売却する",
-                key="sell_stock_button",
-                width="stretch",
-            ):
-                st.session_state["pending_sale_code"] = sell_stock_code
-    else:
-        st.info("保有銀柄はありません。")
-
-    st.markdown("#### 🟠 候補銀柄")
-    if past_stocks:
-        candidate_table_rows = [
-            {
-                "銀柄名（コード）": (
-                    f"{stock['name']}（{stock['code']}）"
-                ),
-                "現在値": (
-                    f"{stock.get('current_price', stock['average_price']):,.0f}円"
-                ),
-                "保有数": f"{stock['shares']:,}株",
-            }
-            for stock in past_stocks
-        ]
-        st.dataframe(
-            candidate_table_rows,
-            hide_index=True,
-            width="stretch",
-            column_config={
-                "銀柄名（コード）": st.column_config.TextColumn(
-                    width="large"
-                ),
-            },
-        )
-        candidate_by_code = {
-            stock["code"]: stock for stock in past_stocks
-        }
-        candidate_action_col, candidate_button_col = st.columns([3, 1])
-        with candidate_action_col:
-            purchase_stock_code = st.selectbox(
-                "購入する候補銀柄",
-                options=list(candidate_by_code),
-                format_func=lambda code: (
-                    f"{candidate_by_code[code]['name']}（{code}）"
-                ),
-                key="purchase_stock_select",
-            )
-        with candidate_button_col:
-            st.write("")
-            if st.button(
-                "購入する",
-                key="purchase_stock_button",
-                type="primary",
-                width="stretch",
-            ):
-                st.session_state["pending_purchase_code"] = (
-                    purchase_stock_code
-                )
-    else:
-        st.info("候補銀柄はありません。")
-
     sorted_stock_lists = sort_items(
         [
             {"header": "保有銘柄", "items": held_labels},
@@ -644,7 +531,7 @@ with stock_tab:
         key=f"stock_board_{st.session_state.get('stock_board_version', 0)}",
         custom_style="""
     .sortable-component.vertical {
-        display: none !important;
+        display: grid;
         grid-template-columns: minmax(0, 1fr);
         gap: 1rem;
         align-items: stretch;
@@ -790,20 +677,20 @@ with stock_tab:
         .replace("__PAST_TABLE_HEADER__", past_table_header),
     )
 
-    with st.expander("🗑️ 候補銀柄を削除"):
+    with st.expander("🗑️ 候補銘柄を削除"):
         if past_stocks:
             candidate_by_code = {
                 stock["code"]: stock for stock in past_stocks
             }
             delete_candidate_code = st.selectbox(
-                "削除する候補銀柄",
+                "削除する候補銘柄",
                 options=list(candidate_by_code),
                 format_func=lambda code: (
                     f"{candidate_by_code[code]['name']}（{code}）"
                 ),
             )
             if st.button(
-                "候補銀柄から削除",
+                "候補銘柄から削除",
                 key="delete_candidate_button",
                 type="primary",
                 width="stretch",
@@ -812,7 +699,7 @@ with stock_tab:
                     delete_candidate_code
                 )
         else:
-            st.caption("削除できる候補銀柄はありません。")
+            st.caption("削除できる候補銘柄はありません。")
 
     with st.expander("📈 Yahooチャートを開く"):
         st.markdown("**保有銘柄**")
