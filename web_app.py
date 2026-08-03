@@ -338,7 +338,7 @@ with col3:
 with col4:
     st.metric("年間配当", f"{annual_dividend:,.0f}円")
 
-st.divider()  
+st.divider()
 stock_tab, allocation_tab, buying_power_tab, settings_tab = st.tabs(
     ["📋 銘柄管理", "🥧 資産配分", "💰 余力資金", "⚙️ 設定"]
 )
@@ -570,6 +570,22 @@ with stock_tab:
             text-align: right;
             font-variant-numeric: tabular-nums;
         }
+        .st-key-held_section {
+            margin: 1.35rem 0 1.5rem;
+            padding: 1rem 1.1rem 0.9rem;
+            border-color: #bfe8d0 !important;
+            border-radius: 1rem !important;
+            background: #effaf4;
+            box-shadow: 0 5px 16px rgba(22, 134, 83, 0.06);
+        }
+        .st-key-candidate_section {
+            margin: 1.35rem 0 1.5rem;
+            padding: 1rem 1.1rem 0.9rem;
+            border-color: #fed1b2 !important;
+            border-radius: 1rem !important;
+            background: #fff6ed;
+            box-shadow: 0 5px 16px rgba(194, 65, 12, 0.05);
+        }
         .portfolio-section-title {
             display: flex;
             align-items: center;
@@ -708,166 +724,170 @@ with stock_tab:
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        f"""
-        <div class="portfolio-section-title held-title">
-            <div><span></span><div><h3>保有銘柄</h3><p>現在保有している銘柄の一覧です。</p></div></div>
-            <strong>{len(held_stocks)} 銘柄</strong>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    held_widths = [3.2, 1, 1, 0.85, 1.15, 1.15, 0.85, 0.8]
-    held_headers = [
-        "銘柄名（コード）",
-        "平均取得",
-        "現在値",
-        "保有数",
-        "評価額",
-        "評価損益",
-        "損益率",
-        "操作",
-    ]
-    held_header_columns = st.columns(held_widths)
-    for column, label in zip(held_header_columns, held_headers):
-        with column:
-            render_stock_cell(
-                label,
-                header=True,
-                numeric=label != "銘柄名（コード）",
-                tone="held",
-            )
-
-    if held_stocks:
-        for stock in held_stocks:
-            current_price = stock.get("current_price", stock["average_price"])
-            evaluation_value = current_price * stock["shares"]
-            stock_profit = (current_price - stock["average_price"]) * stock["shares"]
-            profit_rate = (
-                (current_price - stock["average_price"])
-                / stock["average_price"]
-                * 100
-                if stock["average_price"] > 0
-                else 0
-            )
-            values = [
-                f"{stock['name']}（{stock['code']}）",
-                f"{stock['average_price']:,.0f}円",
-                f"{current_price:,.0f}円",
-                f"{stock['shares']:,}株",
-                f"{evaluation_value:,.0f}円",
-                f"{stock_profit:+,.0f}円",
-                f"{profit_rate:+.1f}%",
-            ]
-            row_columns = st.columns(held_widths)
-            for index, value in enumerate(values):
-                with row_columns[index]:
-                    render_stock_cell(value, numeric=index > 0, tone="held")
-            with row_columns[-1]:
-                if st.button(
-                    "全売却",
-                    key=f"sell_all_{stock['code']}",
-                    width="stretch",
-                ):
-                    st.session_state["pending_sale_code"] = stock["code"]
-    else:
+    held_section = st.container(border=True, key="held_section")
+    with held_section:
         st.markdown(
-            '<div class="stock-empty-state stock-empty-held">'
-            "保有銘柄はありません。</div>",
+            f"""
+            <div class="portfolio-section-title held-title">
+                <div><span></span><div><h3>保有銘柄</h3><p>現在保有している銘柄の一覧です。</p></div></div>
+                <strong>{len(held_stocks)} 銘柄</strong>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
-
-    held_evaluation_total = sum(
-        stock.get("current_price", stock["average_price"]) * stock["shares"]
-        for stock in held_stocks
-    )
-    held_profit_total = sum(
-        (
-            stock.get("current_price", stock["average_price"])
-            - stock["average_price"]
-        )
-        * stock["shares"]
-        for stock in held_stocks
-    )
-    held_profit_rate = (
-        held_profit_total
-        / sum(stock["average_price"] * stock["shares"] for stock in held_stocks)
-        * 100
-        if sum(stock["average_price"] * stock["shares"] for stock in held_stocks) > 0
-        else 0
-    )
-    st.markdown(
-        f"""
-        <div class="held-total-bar">
-            <span>📈 保有銘柄評価額合計</span><strong>{held_evaluation_total:,.0f} 円</strong>
-            <span>評価損益合計</span><strong>{held_profit_total:+,.0f} 円 ({held_profit_rate:+.1f}%)</strong>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        f"""
-        <div class="portfolio-section-title candidate-title">
-            <div><span></span><div><h3>候補銘柄</h3><p>購入を検討している銘柄の一覧です。</p></div></div>
-            <strong>{len(candidate_stocks)} 銘柄</strong>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    candidate_widths = [3.2, 1, 0.9, 1.3]
-    candidate_headers = [
-        "銘柄名（コード）",
-        "現在値",
-        "購入",
-        "一覧から削除",
-    ]
-    candidate_header_columns = st.columns(candidate_widths)
-    for column, label in zip(candidate_header_columns, candidate_headers):
-        with column:
-            render_stock_cell(
-                label,
-                header=True,
-                numeric=label != "銘柄名（コード）",
-                tone="candidate",
-            )
-
-    if candidate_stocks:
-        for stock in candidate_stocks:
-            current_price = stock.get("current_price", stock["average_price"])
-            row_columns = st.columns(candidate_widths)
-            with row_columns[0]:
+        held_widths = [3.2, 1, 1, 0.85, 1.15, 1.15, 0.85, 0.8]
+        held_headers = [
+            "銘柄名（コード）",
+            "平均取得",
+            "現在値",
+            "保有数",
+            "評価額",
+            "評価損益",
+            "損益率",
+            "操作",
+        ]
+        held_header_columns = st.columns(held_widths)
+        for column, label in zip(held_header_columns, held_headers):
+            with column:
                 render_stock_cell(
+                    label,
+                    header=True,
+                    numeric=label != "銘柄名（コード）",
+                    tone="held",
+                )
+
+        if held_stocks:
+            for stock in held_stocks:
+                current_price = stock.get("current_price", stock["average_price"])
+                evaluation_value = current_price * stock["shares"]
+                stock_profit = (current_price - stock["average_price"]) * stock["shares"]
+                profit_rate = (
+                    (current_price - stock["average_price"])
+                    / stock["average_price"]
+                    * 100
+                    if stock["average_price"] > 0
+                    else 0
+                )
+                values = [
                     f"{stock['name']}（{stock['code']}）",
-                    tone="candidate",
-                )
-            with row_columns[1]:
-                render_stock_cell(
+                    f"{stock['average_price']:,.0f}円",
                     f"{current_price:,.0f}円",
-                    numeric=True,
-                    tone="candidate",
-                )
-            with row_columns[2]:
-                if st.button(
-                    "購入",
-                    key=f"purchase_{stock['code']}",
-                    type="primary",
-                    width="stretch",
-                ):
-                    st.session_state["pending_purchase_code"] = stock["code"]
-            with row_columns[3]:
-                if st.button(
-                    "一覧から削除",
-                    key=f"delete_{stock['code']}",
-                    width="stretch",
-                ):
-                    st.session_state["pending_delete_candidate_code"] = stock["code"]
-    else:
+                    f"{stock['shares']:,}株",
+                    f"{evaluation_value:,.0f}円",
+                    f"{stock_profit:+,.0f}円",
+                    f"{profit_rate:+.1f}%",
+                ]
+                row_columns = st.columns(held_widths)
+                for index, value in enumerate(values):
+                    with row_columns[index]:
+                        render_stock_cell(value, numeric=index > 0, tone="held")
+                with row_columns[-1]:
+                    if st.button(
+                        "全売却",
+                        key=f"sell_all_{stock['code']}",
+                        width="stretch",
+                    ):
+                        st.session_state["pending_sale_code"] = stock["code"]
+        else:
+            st.markdown(
+                '<div class="stock-empty-state stock-empty-held">'
+                "保有銘柄はありません。</div>",
+                unsafe_allow_html=True,
+            )
+
+        held_evaluation_total = sum(
+            stock.get("current_price", stock["average_price"]) * stock["shares"]
+            for stock in held_stocks
+        )
+        held_profit_total = sum(
+            (
+                stock.get("current_price", stock["average_price"])
+                - stock["average_price"]
+            )
+            * stock["shares"]
+            for stock in held_stocks
+        )
+        held_profit_rate = (
+            held_profit_total
+            / sum(stock["average_price"] * stock["shares"] for stock in held_stocks)
+            * 100
+            if sum(stock["average_price"] * stock["shares"] for stock in held_stocks) > 0
+            else 0
+        )
         st.markdown(
-            '<div class="stock-empty-state stock-empty-candidate">'
-            "候補銘柄はありません。</div>",
+            f"""
+            <div class="held-total-bar">
+                <span>📈 保有銘柄評価額合計</span><strong>{held_evaluation_total:,.0f} 円</strong>
+                <span>評価損益合計</span><strong>{held_profit_total:+,.0f} 円 ({held_profit_rate:+.1f}%)</strong>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
+
+    candidate_section = st.container(border=True, key="candidate_section")
+    with candidate_section:
+        st.markdown(
+            f"""
+            <div class="portfolio-section-title candidate-title">
+                <div><span></span><div><h3>候補銘柄</h3><p>購入を検討している銘柄の一覧です。</p></div></div>
+                <strong>{len(candidate_stocks)} 銘柄</strong>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        candidate_widths = [3.2, 1, 0.9, 1.3]
+        candidate_headers = [
+            "銘柄名（コード）",
+            "現在値",
+            "購入",
+            "一覧から削除",
+        ]
+        candidate_header_columns = st.columns(candidate_widths)
+        for column, label in zip(candidate_header_columns, candidate_headers):
+            with column:
+                render_stock_cell(
+                    label,
+                    header=True,
+                    numeric=label != "銘柄名（コード）",
+                    tone="candidate",
+                )
+
+        if candidate_stocks:
+            for stock in candidate_stocks:
+                current_price = stock.get("current_price", stock["average_price"])
+                row_columns = st.columns(candidate_widths)
+                with row_columns[0]:
+                    render_stock_cell(
+                        f"{stock['name']}（{stock['code']}）",
+                        tone="candidate",
+                    )
+                with row_columns[1]:
+                    render_stock_cell(
+                        f"{current_price:,.0f}円",
+                        numeric=True,
+                        tone="candidate",
+                    )
+                with row_columns[2]:
+                    if st.button(
+                        "購入",
+                        key=f"purchase_{stock['code']}",
+                        type="primary",
+                        width="stretch",
+                    ):
+                        st.session_state["pending_purchase_code"] = stock["code"]
+                with row_columns[3]:
+                    if st.button(
+                        "一覧から削除",
+                        key=f"delete_{stock['code']}",
+                        width="stretch",
+                    ):
+                        st.session_state["pending_delete_candidate_code"] = stock["code"]
+        else:
+            st.markdown(
+                '<div class="stock-empty-state stock-empty-candidate">'
+                "候補銘柄はありません。</div>",
+                unsafe_allow_html=True,
+            )
 
 pending_purchase_code = st.session_state.get("pending_purchase_code")
 pending_sale_code = st.session_state.get("pending_sale_code")
