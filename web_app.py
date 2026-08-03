@@ -5,7 +5,12 @@ import streamlit as st
 import plotly.express as px
 from streamlit_sortables import sort_items
 
-from api import fetch_current_price, get_yahoo_symbol
+from api import (
+    JAPANESE_STOCK_CODE_PATTERN,
+    fetch_current_price,
+    fetch_stock_info,
+    get_yahoo_symbol,
+)
 from database import load_initial_capital, load_stocks, save_stocks
 from services.portfolio_service import (
     build_allocation_data,
@@ -15,7 +20,12 @@ from services.portfolio_service import (
     calculate_total_assets,
     calculate_unrealized_profit,
 )
-from stock import cash_balance as calculate_cash_balance, set_share_count
+from stock import (
+    cash_balance as calculate_cash_balance,
+    create_candidate,
+    normalize_input,
+    set_share_count,
+)
 from web_navigation import render_sidebar_navigation
 
 
@@ -226,6 +236,47 @@ with stock_tab:
         "過去保有銘柄を保有銘柄へ移すと購入。"
         "保有銘柄を過去保有銘柄へ移すと全売却。"
     )
+
+    with st.expander("➕ 新しい銘柄を追加", expanded=not stocks):
+        with st.form("add_stock_form", clear_on_submit=True):
+            stock_code_input = st.text_input(
+                "日本株の銘柄コード",
+                placeholder="例：7203",
+                max_chars=4,
+                help="4文字の銘柄コードを入力してください。",
+            )
+            add_stock_submitted = st.form_submit_button(
+                "銘柄を追加", type="primary", width="stretch"
+            )
+
+        if add_stock_submitted:
+            normalized_code = normalize_input(stock_code_input).strip().upper()
+            existing_codes = {stock["code"] for stock in stocks}
+
+            if not JAPANESE_STOCK_CODE_PATTERN.fullmatch(normalized_code):
+                st.error("銘柄コードを4文字で入力してください。")
+            elif normalized_code in existing_codes:
+                st.warning("この銘柄はすでに登録されています。")
+            else:
+                try:
+                    with st.spinner("銘柄情報を取得中…"):
+                        stock_info = fetch_stock_info(normalized_code)
+                except RuntimeError as error:
+                    st.error(f"銘柄情報を取得できませんでした。{error}")
+                else:
+                    stocks.append(create_candidate(normalized_code, stock_info))
+                    save_stocks(stocks)
+                    st.session_state["stock_board_version"] = (
+                        st.session_state.get("stock_board_version", 0) + 1
+                    )
+                    st.session_state["stock_added_message"] = (
+                        f"{stock_info['name']}（{normalized_code}）を追加しました。"
+                    )
+                    st.rerun()
+
+    stock_added_message = st.session_state.pop("stock_added_message", None)
+    if stock_added_message:
+        st.success(stock_added_message)
 
 
 def fit_text(text, width):
