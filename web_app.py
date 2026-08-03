@@ -47,7 +47,8 @@ st.markdown(
     <style>
     html, body, [class*="css"], [data-testid="stAppViewContainer"] {
         font-family:
-            Inter, "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
+            "Noto Sans Mono CJK JP", "Osaka-Mono", "MS Gothic",
+            "SFMono-Regular", Consolas, monospace;
     }
 
     h1, h2, h3, [data-testid="stMetricLabel"],
@@ -242,7 +243,7 @@ with stock_tab:
         "保有銘柄を候補銘柄へ移すと全売却。"
     )
 
-    with st.expander("➕ 新しい銘柄を追加", expanded=not stocks):
+    with st.expander("➕ 新しい銘柄を候補銘柄に追加", expanded=not stocks):
         with st.form("add_stock_form", clear_on_submit=True):
             stock_code_input = st.text_input(
                 "日本株の銘柄コード",
@@ -251,7 +252,7 @@ with stock_tab:
                 help="全角の数字・英字にも対応しています。4文字で入力してください。",
             )
             add_stock_submitted = st.form_submit_button(
-                "銘柄を追加", type="primary", width="stretch"
+                "候補銘柄に追加", type="primary", width="stretch"
             )
 
         if add_stock_submitted:
@@ -306,7 +307,7 @@ def stock_card_label(
     include_average_price=True,
     include_shares=True,
     include_evaluation=True,
-    name_width=22,
+    name_width=40,
 ):
     current_price = stock.get("current_price", stock["average_price"])
     stock_name = f"{stock['name']}（{stock['code']}）"
@@ -325,17 +326,17 @@ def stock_card_label(
 
     profit_marker = "🟢" if profit_loss >= 0 else "🔴"
 
-    fields = [stock_name]
+    fields = [(stock_name, name_width)]
     if include_average_price:
-        fields.append(f"{stock['average_price']:>7,.0f}円")
-    fields.append(f"{current_price:>7,.0f}円")
+        fields.append((f"{stock['average_price']:,.0f}円", 12))
+    fields.append((f"{current_price:,.0f}円", 12))
     if include_shares:
-        fields.append(f"{stock['shares']:>5,}株")
+        fields.append((f"{stock['shares']:,}株", 10))
     if include_evaluation:
-        fields.append(f"{evaluation_value:>9,.0f}円")
-        fields.append(f"{profit_marker}{profit_loss:>+8,.0f}円")
-        fields.append(f"{profit_rate:+5.1f}%")
-    return "　｜　".join(fields)
+        fields.append((f"{evaluation_value:,.0f}円", 14))
+        fields.append((f"{profit_marker}{profit_loss:+,.0f}円", 14))
+        fields.append((f"{profit_rate:+.1f}%", 10))
+    return "  ".join(fit_text(value, width) for value, width in fields)
 
 
 def reset_stock_board():
@@ -416,7 +417,41 @@ def show_sell_all_dialog(stock):
             st.rerun()
 
 
-for message_key in ("purchase_message", "sale_message"):
+@st.dialog("候補銀柄の削除")
+def show_delete_candidate_dialog(stock):
+    st.write(f"**{stock['name']}（{stock['code']}）**")
+    st.warning(
+        "この候補銀柄を一覧から削除します。"
+        "過去の売買履歴も削除され、元に戻せません。"
+    )
+
+    cancel_col, delete_col = st.columns(2)
+    with cancel_col:
+        if st.button("キャンセル", key="cancel_candidate_delete", width="stretch"):
+            st.session_state.pop("pending_delete_candidate_code", None)
+            st.rerun()
+    with delete_col:
+        if st.button(
+            "削除する",
+            key="confirm_candidate_delete",
+            type="primary",
+            width="stretch",
+        ):
+            stocks[:] = [item for item in stocks if item["code"] != stock["code"]]
+            save_stocks(stocks)
+            st.session_state.pop("pending_delete_candidate_code", None)
+            reset_stock_board()
+            st.session_state["candidate_deleted_message"] = (
+                f"{stock['name']}（{stock['code']}）を候補銀柄から削除しました。"
+            )
+            st.rerun()
+
+
+for message_key in (
+    "purchase_message",
+    "sale_message",
+    "candidate_deleted_message",
+):
     message = st.session_state.pop(message_key, None)
     if message:
         stock_tab.success(message)
@@ -430,7 +465,7 @@ past_labels = [
         include_average_price=False,
         include_shares=True,
         include_evaluation=False,
-        name_width=30,
+        name_width=40,
     )
     for stock in past_stocks
 ]
@@ -444,29 +479,29 @@ label_to_code.update({
         include_average_price=False,
         include_shares=True,
         include_evaluation=False,
-        name_width=30,
+        name_width=40,
     ): stock["code"]
     for stock in past_stocks
 })
 table_header = (
-    "　｜　".join(
+    "  ".join(
         [
-            "銘柄名（コード）",
-            "平均取得",
-            "現在値",
-            "保有数",
-            "評価額",
-            "評価損益",
-            "損益率",
+            fit_text("銘柄名（コード）", 40),
+            fit_text("平均取得", 12),
+            fit_text("現在値", 12),
+            fit_text("保有数", 10),
+            fit_text("評価額", 14),
+            fit_text("評価損益", 14),
+            fit_text("損益率", 10),
         ]
     )
 )
 past_table_header = (
-    "　｜　".join(
+    "  ".join(
         [
-            "銘柄名（コード）",
-            "現在値",
-            "保有数",
+            fit_text("銘柄名（コード）", 40),
+            fit_text("現在値", 12),
+            fit_text("保有数", 10),
         ]
     )
 )
@@ -561,7 +596,7 @@ with stock_tab:
         letter-spacing: 0;
         text-align: left;
         tab-size: 12;
-        white-space: normal;
+        white-space: pre;
     }
     .sortable-component.vertical
         .sortable-container:nth-of-type(2)
@@ -595,7 +630,8 @@ with stock_tab:
         cursor: grab;
         touch-action: pan-y;
         font-family:
-            Inter, "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
+            "Noto Sans Mono CJK JP", "Osaka-Mono", "MS Gothic",
+            "SFMono-Regular", Consolas, monospace;
         font-size: 0.9rem;
         line-height: 1.35;
         font-weight: 600;
@@ -603,9 +639,9 @@ with stock_tab:
         letter-spacing: 0;
         text-align: left !important;
         tab-size: 12;
-        white-space: normal;
-        overflow-wrap: anywhere;
-        overflow: visible;
+        white-space: pre;
+        overflow-x: auto;
+        overflow-y: hidden;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
         transition:
             color 0.15s ease,
@@ -626,6 +662,30 @@ with stock_tab:
         .replace("__TABLE_HEADER__", table_header)
         .replace("__PAST_TABLE_HEADER__", past_table_header),
     )
+
+    with st.expander("🗑️ 候補銀柄を削除"):
+        if past_stocks:
+            candidate_by_code = {
+                stock["code"]: stock for stock in past_stocks
+            }
+            delete_candidate_code = st.selectbox(
+                "削除する候補銀柄",
+                options=list(candidate_by_code),
+                format_func=lambda code: (
+                    f"{candidate_by_code[code]['name']}（{code}）"
+                ),
+            )
+            if st.button(
+                "候補銀柄から削除",
+                key="delete_candidate_button",
+                type="primary",
+                width="stretch",
+            ):
+                st.session_state["pending_delete_candidate_code"] = (
+                    delete_candidate_code
+                )
+        else:
+            st.caption("削除できる候補銀柄はありません。")
 
     with st.expander("📈 Yahooチャートを開く"):
         st.markdown("**保有銘柄**")
@@ -673,6 +733,7 @@ dropped_into_past = [
 has_pending_trade = (
     "pending_purchase_code" in st.session_state
     or "pending_sale_code" in st.session_state
+    or "pending_delete_candidate_code" in st.session_state
 )
 
 if dropped_into_holdings and not has_pending_trade:
@@ -682,6 +743,9 @@ elif dropped_into_past and not has_pending_trade:
 
 pending_purchase_code = st.session_state.get("pending_purchase_code")
 pending_sale_code = st.session_state.get("pending_sale_code")
+pending_delete_candidate_code = st.session_state.get(
+    "pending_delete_candidate_code"
+)
 
 if pending_purchase_code:
     pending_stock = next(
@@ -701,6 +765,20 @@ elif pending_sale_code:
         show_sell_all_dialog(pending_stock)
     else:
         st.session_state.pop("pending_sale_code", None)
+elif pending_delete_candidate_code:
+    pending_stock = next(
+        (
+            stock
+            for stock in stocks
+            if stock["code"] == pending_delete_candidate_code
+            and stock["shares"] == 0
+        ),
+        None,
+    )
+    if pending_stock is not None:
+        show_delete_candidate_dialog(pending_stock)
+    else:
+        st.session_state.pop("pending_delete_candidate_code", None)
 
 # =========================
 # 保有比率グラフ
