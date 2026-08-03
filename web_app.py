@@ -1,9 +1,8 @@
 from datetime import datetime
-import unicodedata
+from html import escape
 
 import streamlit as st
 import plotly.express as px
-from streamlit_sortables import sort_items
 
 from api import (
     fetch_current_price,
@@ -250,8 +249,7 @@ stock_tab, allocation_tab, buying_power_tab, settings_tab = st.tabs(
 with stock_tab:
     st.subheader("📋 銘柄管理")
     st.caption(
-        "候補銘柄を保有銘柄へ移すと購入。"
-        "保有銘柄を候補銘柄へ移すと全売却。"
+        "各銘柄の行にあるボタンから、購入・全売却・削除を操作できます。"
     )
 
     with st.expander("➕ 新しい銘柄を候補銘柄に追加", expanded=not stocks):
@@ -294,69 +292,6 @@ with stock_tab:
     stock_added_message = st.session_state.pop("stock_added_message", None)
     if stock_added_message:
         st.success(stock_added_message)
-
-
-def fit_text(text, width):
-    """全角文字を考慮して、表示幅を揃えた文字列を返す。"""
-    fitted_text = ""
-    display_width = 0
-
-    for character in text:
-        character_width = (
-            2 if unicodedata.east_asian_width(character) in {"W", "F"} else 1
-        )
-        if display_width + character_width > width:
-            break
-        fitted_text += character
-        display_width += character_width
-
-    return fitted_text + " " * (width - display_width)
-
-
-def stock_card_label(
-    stock,
-    include_average_price=True,
-    include_shares=True,
-    include_evaluation=True,
-    name_width=40,
-):
-    current_price = stock.get("current_price", stock["average_price"])
-    name_width_without_code = max(name_width - 8, 1)
-    visible_name = fit_text(
-        stock["name"], name_width_without_code
-    ).rstrip()
-    stock_name = f"{visible_name}（{stock['code']}）"
-    evaluation_value = current_price * stock["shares"]
-
-    profit_loss = (current_price - stock["average_price"]) * stock["shares"]
-
-    if stock["average_price"] > 0:
-        profit_rate = (
-            (current_price - stock["average_price"])
-            / stock["average_price"]
-            * 100
-        )
-    else:
-        profit_rate = 0
-
-    profit_marker = "🟢" if profit_loss >= 0 else "🔴"
-
-    fields = [(stock_name, name_width)]
-    if include_average_price:
-        fields.append((f"{stock['average_price']:,.0f}円", 12))
-    fields.append((f"{current_price:,.0f}円", 12))
-    if include_shares:
-        fields.append((f"{stock['shares']:,}株", 10))
-    if include_evaluation:
-        fields.append((f"{evaluation_value:,.0f}円", 14))
-        fields.append((f"{profit_marker}{profit_loss:+,.0f}円", 14))
-        fields.append((f"{profit_rate:+.1f}%", 10))
-    if include_evaluation:
-        return "\u00a0\u00a0".join(
-            fit_text(value, width).replace(" ", "\u00a0")
-            for value, width in fields
-        )
-    return "  ".join(fit_text(value, width) for value, width in fields)
 
 
 def reset_stock_board():
@@ -476,314 +411,176 @@ for message_key in (
     if message:
         stock_tab.success(message)
 
+
+def render_stock_cell(text, *, header=False, numeric=False):
+    classes = ["stock-grid-cell"]
+    if header:
+        classes.append("stock-grid-header")
+    if numeric:
+        classes.append("stock-grid-number")
+    safe_text = escape(str(text))
+    st.markdown(
+        f'<div class="{" ".join(classes)}" title="{safe_text}">'
+        f"{safe_text}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 held_stocks = [stock for stock in stocks if stock["shares"] > 0]
-past_stocks = [stock for stock in stocks if stock["shares"] == 0]
-held_labels = [stock_card_label(stock) for stock in held_stocks]
-past_labels = [
-    stock_card_label(
-        stock,
-        include_average_price=False,
-        include_shares=True,
-        include_evaluation=False,
-        name_width=40,
-    )
-    for stock in past_stocks
-]
-label_to_code = {
-    stock_card_label(stock): stock["code"]
-    for stock in held_stocks
-}
-label_to_code.update({
-    stock_card_label(
-        stock,
-        include_average_price=False,
-        include_shares=True,
-        include_evaluation=False,
-        name_width=40,
-    ): stock["code"]
-    for stock in past_stocks
-})
-table_header = (
-    "\u00a0\u00a0".join(
-        [
-            fit_text("銘柄名（コード）", 40),
-            fit_text("平均取得", 12),
-            fit_text("現在値", 12),
-            fit_text("保有数", 10),
-            fit_text("評価額", 14),
-            fit_text("評価損益", 14),
-            fit_text("損益率", 10),
-        ]
-    )
-)
-table_header = table_header.replace(" ", "\u00a0")
+candidate_stocks = [stock for stock in stocks if stock["shares"] == 0]
 
-past_table_header = (
-    "  ".join(
-        [
-            fit_text("銘柄名（コード）", 40),
-            fit_text("現在値", 12),
-            fit_text("保有数", 10),
-        ]
-    )
-)
 with stock_tab:
-    sorted_stock_lists = sort_items(
-        [
-            {"header": "保有銘柄", "items": held_labels},
-            {"header": "候補銘柄", "items": past_labels},
-        ],
-        multi_containers=True,
-        direction="vertical",
-        key=f"stock_board_{st.session_state.get('stock_board_version', 0)}",
-        custom_style="""
-    .sortable-component.vertical {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 1rem;
-        align-items: stretch;
-        width: 100%;
-        overflow-x: hidden;
-    }
-    .sortable-component.vertical .sortable-container {
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        min-width: 0;
-        height: 24rem;
-        min-height: 24rem;
-        padding: 0.75rem !important;
-        border: 1px solid #d8dee9;
-        border-radius: 12px;
-        box-sizing: border-box;
-        overflow: hidden;
-    }
-    .sortable-container:first-of-type {
-        border-color: #bbdfc8;
-        background: #edf8f1;
-    }
-    .sortable-container:nth-of-type(2) {
-        border-color: #f1d2ae;
-        background: #fff7ed;
-    }
-    .sortable-container-header {
-        margin-bottom: 0.6rem;
-        padding: 0.55rem 0.75rem;
-        border-radius: 0.5rem;
-        font-size: 1.05rem;
-        line-height: 1.35;
-        font-weight: 800;
-    }
-    .sortable-container:first-of-type .sortable-container-header {
-        background: #d1fae5 !important;
-        color: #14532d !important;
-    }
-    .sortable-container:nth-of-type(2) .sortable-container-header {
-        background: #ffedd5 !important;
-        color: #7c2d12 !important;
-    }
-    .sortable-container-body {
-        flex: 1;
-        width: 100%;
-        height: calc(100% - 3rem);
-        min-height: 0;
-        padding: 0;
-        box-sizing: border-box;
-        overflow-x: hidden;
-        overflow-y: scroll !important;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-gutter: stable;
-    }
-    .sortable-container-body::before {
-        content: "__TABLE_HEADER__";
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        display: block;
-        width: 100%;
-        min-width: 0;
-        padding: 0.55rem 0.7rem;
-        border-bottom: 2px solid #cbd5e1;
-        box-sizing: border-box;
-        background: #f8fafc;
-        color: #475569;
-        font-family:
-            Inter, "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
-        font-size: 0.9rem;
-        line-height: 1.35;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0;
-        text-align: left;
-        tab-size: 12;
-        white-space: pre;
-    }
-    .sortable-component.vertical
-        .sortable-container:nth-of-type(2)
-        .sortable-container-body::before {
-        content: "__PAST_TABLE_HEADER__" !important;
-    }
-    .sortable-container:first-of-type .sortable-container-body {
-        background: #e3f3e9;
-    }
-    .sortable-container:nth-of-type(2) .sortable-container-body {
-        background: #fcebd8;
-    }
-    .sortable-container:nth-of-type(2) .sortable-container-body::before,
-    .sortable-container:nth-of-type(2) .sortable-item {
-        tab-size: 12 !important;
-    }
-    .sortable-item {
-        width: 100%;
-        min-width: 0;
-        max-width: 100%;
-        height: auto !important;
-        min-height: 2.8rem;
-        margin: 0;
-        padding: 0.5rem 0.7rem !important;
-        border: 0;
-        border-bottom: 1px solid #dbe3ec;
-        border-radius: 0;
-        background-color: white !important;
-        color: #172033 !important;
-        box-sizing: border-box;
-        cursor: grab;
-        touch-action: pan-y;
-        font-family:
-            "Noto Sans Mono CJK JP", "Osaka-Mono", "MS Gothic",
-            "SFMono-Regular", Consolas, monospace;
-        font-size: 0.9rem;
-        line-height: 1.35;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0;
-        text-align: left !important;
-        tab-size: 12;
-        white-space: pre;
-        overflow-x: auto;
-        overflow-y: hidden;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-        transition:
-            color 0.15s ease,
-            background-color 0.15s ease,
-            border-color 0.15s ease;
-    }
-    .sortable-container:first-of-type .sortable-container-body::before,
-    .sortable-container:first-of-type .sortable-item {
-        font-family:
-            ui-monospace, "SFMono-Regular", Menlo, Monaco,
-            Consolas, monospace !important;
-        font-variant-east-asian: full-width;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0 !important;
-        word-spacing: 0 !important;
-    }
-    .sortable-item:hover {
-        height: auto !important;
-        min-height: 2.8rem;
-        padding: 0.5rem 0.7rem !important;
-        background-color: #2563eb !important;
-        color: white !important;
-        border-color: #2563eb;
-        font-size: 0.9rem;
-        line-height: 1.35;
-    }
+    st.markdown(
         """
-        .replace("__TABLE_HEADER__", table_header)
-        .replace("__PAST_TABLE_HEADER__", past_table_header),
+        <style>
+        .stock-grid-cell {
+            min-width: 0;
+            padding: 0.45rem 0.2rem;
+            color: inherit;
+            font-size: 0.95rem;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .stock-grid-header {
+            color: #475569;
+            font-weight: 750;
+        }
+        .stock-grid-number {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        [data-testid="stHorizontalBlock"]:has(.stock-grid-cell) {
+            align-items: center;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
-    with st.expander("🗑️ 候補銘柄を削除"):
-        if past_stocks:
-            candidate_by_code = {
-                stock["code"]: stock for stock in past_stocks
-            }
-            delete_candidate_code = st.selectbox(
-                "削除する候補銘柄",
-                options=list(candidate_by_code),
-                format_func=lambda code: (
-                    f"{candidate_by_code[code]['name']}（{code}）"
-                ),
+    st.markdown("#### 🟢 保有銘柄")
+    held_widths = [3.2, 1, 1, 0.85, 1.15, 1.15, 0.85, 0.8]
+    held_headers = [
+        "銘柄名（コード）",
+        "平均取得",
+        "現在値",
+        "保有数",
+        "評価額",
+        "評価損益",
+        "損益率",
+        "操作",
+    ]
+    held_header_columns = st.columns(held_widths)
+    for column, label in zip(held_header_columns, held_headers):
+        with column:
+            render_stock_cell(label, header=True, numeric=label != "銘柄名（コード）")
+
+    if held_stocks:
+        for stock in held_stocks:
+            current_price = stock.get("current_price", stock["average_price"])
+            evaluation_value = current_price * stock["shares"]
+            stock_profit = (current_price - stock["average_price"]) * stock["shares"]
+            profit_rate = (
+                (current_price - stock["average_price"])
+                / stock["average_price"]
+                * 100
+                if stock["average_price"] > 0
+                else 0
             )
-            if st.button(
-                "候補銘柄から削除",
-                key="delete_candidate_button",
-                type="primary",
-                width="stretch",
-            ):
-                st.session_state["pending_delete_candidate_code"] = (
-                    delete_candidate_code
-                )
-        else:
-            st.caption("削除できる候補銘柄はありません。")
+            values = [
+                f"{stock['name']}（{stock['code']}）",
+                f"{stock['average_price']:,.0f}円",
+                f"{current_price:,.0f}円",
+                f"{stock['shares']:,}株",
+                f"{evaluation_value:,.0f}円",
+                f"{stock_profit:+,.0f}円",
+                f"{profit_rate:+.1f}%",
+            ]
+            row_columns = st.columns(held_widths)
+            for index, value in enumerate(values):
+                with row_columns[index]:
+                    render_stock_cell(value, numeric=index > 0)
+            with row_columns[-1]:
+                if st.button(
+                    "全売却",
+                    key=f"sell_all_{stock['code']}",
+                    width="stretch",
+                ):
+                    st.session_state["pending_sale_code"] = stock["code"]
+    else:
+        st.info("保有銘柄はありません。")
+
+    st.markdown("#### 🟠 候補銘柄")
+    candidate_widths = [3.2, 1, 0.85, 0.8, 0.8]
+    candidate_headers = [
+        "銘柄名（コード）",
+        "現在値",
+        "保有数",
+        "購入",
+        "削除",
+    ]
+    candidate_header_columns = st.columns(candidate_widths)
+    for column, label in zip(candidate_header_columns, candidate_headers):
+        with column:
+            render_stock_cell(label, header=True, numeric=label != "銘柄名（コード）")
+
+    if candidate_stocks:
+        for stock in candidate_stocks:
+            current_price = stock.get("current_price", stock["average_price"])
+            row_columns = st.columns(candidate_widths)
+            with row_columns[0]:
+                render_stock_cell(f"{stock['name']}（{stock['code']}）")
+            with row_columns[1]:
+                render_stock_cell(f"{current_price:,.0f}円", numeric=True)
+            with row_columns[2]:
+                render_stock_cell(f"{stock['shares']:,}株", numeric=True)
+            with row_columns[3]:
+                if st.button(
+                    "購入",
+                    key=f"purchase_{stock['code']}",
+                    type="primary",
+                    width="stretch",
+                ):
+                    st.session_state["pending_purchase_code"] = stock["code"]
+            with row_columns[4]:
+                if st.button(
+                    "削除",
+                    key=f"delete_{stock['code']}",
+                    width="stretch",
+                ):
+                    st.session_state["pending_delete_candidate_code"] = stock["code"]
+    else:
+        st.info("候補銘柄はありません。")
 
     with st.expander("📈 Yahooチャートを開く"):
-        st.markdown("**保有銘柄**")
-        if held_stocks:
-            for stock in held_stocks:
-                yahoo_symbol = get_yahoo_symbol(stock["code"])
-                chart_url = (
-                    f"https://finance.yahoo.co.jp/quote/{yahoo_symbol}/chart"
-                )
-                st.link_button(
-                    f"📈 {stock['name']}（{stock['code']}）",
-                    chart_url,
-                    width="stretch",
-                )
-        else:
-            st.caption("保有銘柄はありません。")
-
-        st.divider()
-        st.markdown("**候補銘柄**")
-        if past_stocks:
-            for stock in past_stocks:
-                yahoo_symbol = get_yahoo_symbol(stock["code"])
-                chart_url = (
-                    f"https://finance.yahoo.co.jp/quote/{yahoo_symbol}/chart"
-                )
-                st.link_button(
-                    f"📈 {stock['name']}（{stock['code']}）",
-                    chart_url,
-                    width="stretch",
-                )
-        else:
-            st.caption("候補銘柄はありません。")
-
-dropped_into_holdings = [
-    label
-    for label in sorted_stock_lists[0]["items"]
-    if label not in held_labels
-]
-dropped_into_past = [
-    label
-    for label in sorted_stock_lists[1]["items"]
-    if label not in past_labels
-]
-
-has_pending_trade = (
-    "pending_purchase_code" in st.session_state
-    or "pending_sale_code" in st.session_state
-    or "pending_delete_candidate_code" in st.session_state
-)
-
-if dropped_into_holdings and not has_pending_trade:
-    st.session_state["pending_purchase_code"] = label_to_code[dropped_into_holdings[0]]
-elif dropped_into_past and not has_pending_trade:
-    st.session_state["pending_sale_code"] = label_to_code[dropped_into_past[0]]
+        for section_name, section_stocks in (
+            ("保有銘柄", held_stocks),
+            ("候補銘柄", candidate_stocks),
+        ):
+            st.markdown(f"**{section_name}**")
+            if section_stocks:
+                for stock in section_stocks:
+                    yahoo_symbol = get_yahoo_symbol(stock["code"])
+                    st.link_button(
+                        f"📈 {stock['name']}（{stock['code']}）",
+                        f"https://finance.yahoo.co.jp/quote/{yahoo_symbol}/chart",
+                        width="stretch",
+                    )
+            else:
+                st.caption(f"{section_name}はありません。")
 
 pending_purchase_code = st.session_state.get("pending_purchase_code")
 pending_sale_code = st.session_state.get("pending_sale_code")
-pending_delete_candidate_code = st.session_state.get(
-    "pending_delete_candidate_code"
-)
+pending_delete_candidate_code = st.session_state.get("pending_delete_candidate_code")
 
 if pending_purchase_code:
     pending_stock = next(
         (stock for stock in stocks if stock["code"] == pending_purchase_code),
         None,
     )
-    if pending_stock is not None:
+    if pending_stock is not None and pending_stock["shares"] == 0:
         show_purchase_dialog(pending_stock)
     else:
         st.session_state.pop("pending_purchase_code", None)
@@ -792,7 +589,7 @@ elif pending_sale_code:
         (stock for stock in stocks if stock["code"] == pending_sale_code),
         None,
     )
-    if pending_stock is not None:
+    if pending_stock is not None and pending_stock["shares"] > 0:
         show_sell_all_dialog(pending_stock)
     else:
         st.session_state.pop("pending_sale_code", None)
@@ -811,7 +608,6 @@ elif pending_delete_candidate_code:
     else:
         st.session_state.pop("pending_delete_candidate_code", None)
 
-# =========================
 # 保有比率グラフ
 # =========================
 
