@@ -2,7 +2,11 @@ import unittest
 from unittest.mock import patch
 
 import api
-from api import parse_minkabu_dividend_months, parse_minkabu_stock_name
+from api import (
+    parse_minkabu_dividend_months,
+    parse_minkabu_stock_name,
+    parse_yahoo_japan_stock_name,
+)
 
 
 class MinkabuStockNameTest(unittest.TestCase):
@@ -23,6 +27,21 @@ class MinkabuStockNameTest(unittest.TestCase):
         page_html = "<div>配当権利確定月 <strong>3月, 9月</strong></div>"
 
         self.assertEqual(parse_minkabu_dividend_months(page_html), [3, 9])
+
+
+class YahooJapanStockNameTest(unittest.TestCase):
+    def test_extracts_japanese_name_and_removes_company_marker(self):
+        page_html = "<title>トヨタ自動車(株)【7203】：株価 - Yahoo!ファイナンス</title>"
+
+        self.assertEqual(parse_yahoo_japan_stock_name(page_html, "7203"), "トヨタ自動車")
+
+    def test_extracts_name_for_alphanumeric_code(self):
+        page_html = "<title>キオクシアホールディングス(株)【285A】：株価</title>"
+
+        self.assertEqual(
+            parse_yahoo_japan_stock_name(page_html, "285A"),
+            "キオクシアホールディングス",
+        )
 
 
 class ApiCompatibilityTest(unittest.TestCase):
@@ -98,6 +117,7 @@ class ApiCompatibilityTest(unittest.TestCase):
 
     @patch("api.fetch_dividend_months", return_value=[])
     @patch("api.fetch_dividend_yield", return_value=None)
+    @patch("api.fetch_yahoo_japan_stock_name", return_value=None)
     @patch("api.fetch_japanese_stock_name", return_value=None)
     @patch(
         "api.market_data_service.fetch_current_quote",
@@ -107,6 +127,7 @@ class ApiCompatibilityTest(unittest.TestCase):
         self,
         _quote,
         _japanese_name,
+        _yahoo_japan_name,
         _dividend_yield,
         _dividend_months,
     ):

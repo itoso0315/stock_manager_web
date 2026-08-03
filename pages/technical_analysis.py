@@ -62,10 +62,7 @@ if not portfolio_stocks:
     )
 else:
     stock_options = {
-        (
-            f"{stock['name']}（{stock['code']}）"
-            f"｜{'保有' if stock['shares'] > 0 else '過去保有'}"
-        ): stock
+        f"{stock['name']}（{stock['code']}）": stock
         for stock in portfolio_stocks
     }
     selected_label = st.selectbox(

@@ -268,7 +268,8 @@ for stock in stocks:
             stock["code"],
             get_yahoo_symbol(stock["code"]),
         }
-        if not stock.get("name") or stock["name"] in placeholder_names:
+        current_name = stock.get("name", "")
+        if not current_name or current_name in placeholder_names or current_name.isascii():
             refreshed_info = fetch_stock_info(stock["code"])
             stock["name"] = refreshed_info["name"]
             stock["current_price"] = refreshed_info["price"]
@@ -374,7 +375,7 @@ with stock_tab:
         with st.form("add_stock_form", clear_on_submit=True):
             stock_code_input = st.text_input(
                 "日本株の銘柄コード",
-                placeholder="例：7203、２８５ａ",
+                placeholder="例：7203、285A",
                 max_chars=4,
                 help="全角の数字・英字にも対応しています。4文字で入力してください。",
             )
