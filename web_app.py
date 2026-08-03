@@ -412,12 +412,14 @@ for message_key in (
         stock_tab.success(message)
 
 
-def render_stock_cell(text, *, header=False, numeric=False):
+def render_stock_cell(text, *, header=False, numeric=False, tone=None):
     classes = ["stock-grid-cell"]
     if header:
         classes.append("stock-grid-header")
     if numeric:
         classes.append("stock-grid-number")
+    if tone:
+        classes.append(f"stock-grid-{tone}")
     safe_text = escape(str(text))
     st.markdown(
         f'<div class="{" ".join(classes)}" title="{safe_text}">'
@@ -435,8 +437,8 @@ with stock_tab:
         <style>
         .stock-grid-cell {
             min-width: 0;
-            padding: 0.45rem 0.2rem;
-            color: inherit;
+            padding: 0.65rem 0.35rem;
+            color: var(--text-color);
             font-size: 0.95rem;
             line-height: 1.35;
             white-space: nowrap;
@@ -444,8 +446,7 @@ with stock_tab:
             text-overflow: ellipsis;
         }
         .stock-grid-header {
-            color: #475569;
-            font-weight: 750;
+            font-weight: 800;
         }
         .stock-grid-number {
             text-align: right;
@@ -453,7 +454,35 @@ with stock_tab:
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-cell) {
             align-items: center;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+            margin-bottom: 0.35rem;
+            padding: 0.25rem 0.6rem;
+            border: 1px solid transparent;
+            border-radius: 0.65rem;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+        }
+        [data-testid="stHorizontalBlock"]:has(.stock-grid-held.stock-grid-header) {
+            border-color: rgba(34, 197, 94, 0.34);
+            background: rgba(34, 197, 94, 0.20);
+        }
+        [data-testid="stHorizontalBlock"]:has(.stock-grid-held):not(:has(.stock-grid-header)) {
+            border-color: rgba(34, 197, 94, 0.22);
+            background: rgba(34, 197, 94, 0.08);
+        }
+        [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate.stock-grid-header) {
+            border-color: rgba(249, 115, 22, 0.36);
+            background: rgba(249, 115, 22, 0.20);
+        }
+        [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate):not(:has(.stock-grid-header)) {
+            border-color: rgba(249, 115, 22, 0.24);
+            background: rgba(249, 115, 22, 0.08);
+        }
+        [data-testid="stHorizontalBlock"]:has(.stock-grid-held):not(:has(.stock-grid-header)):hover {
+            border-color: rgba(34, 197, 94, 0.48);
+            background: rgba(34, 197, 94, 0.14);
+        }
+        [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate):not(:has(.stock-grid-header)):hover {
+            border-color: rgba(249, 115, 22, 0.50);
+            background: rgba(249, 115, 22, 0.14);
         }
         </style>
         """,
@@ -475,7 +504,12 @@ with stock_tab:
     held_header_columns = st.columns(held_widths)
     for column, label in zip(held_header_columns, held_headers):
         with column:
-            render_stock_cell(label, header=True, numeric=label != "銘柄名（コード）")
+            render_stock_cell(
+                label,
+                header=True,
+                numeric=label != "銘柄名（コード）",
+                tone="held",
+            )
 
     if held_stocks:
         for stock in held_stocks:
@@ -501,7 +535,7 @@ with stock_tab:
             row_columns = st.columns(held_widths)
             for index, value in enumerate(values):
                 with row_columns[index]:
-                    render_stock_cell(value, numeric=index > 0)
+                    render_stock_cell(value, numeric=index > 0, tone="held")
             with row_columns[-1]:
                 if st.button(
                     "全売却",
@@ -524,18 +558,34 @@ with stock_tab:
     candidate_header_columns = st.columns(candidate_widths)
     for column, label in zip(candidate_header_columns, candidate_headers):
         with column:
-            render_stock_cell(label, header=True, numeric=label != "銘柄名（コード）")
+            render_stock_cell(
+                label,
+                header=True,
+                numeric=label != "銘柄名（コード）",
+                tone="candidate",
+            )
 
     if candidate_stocks:
         for stock in candidate_stocks:
             current_price = stock.get("current_price", stock["average_price"])
             row_columns = st.columns(candidate_widths)
             with row_columns[0]:
-                render_stock_cell(f"{stock['name']}（{stock['code']}）")
+                render_stock_cell(
+                    f"{stock['name']}（{stock['code']}）",
+                    tone="candidate",
+                )
             with row_columns[1]:
-                render_stock_cell(f"{current_price:,.0f}円", numeric=True)
+                render_stock_cell(
+                    f"{current_price:,.0f}円",
+                    numeric=True,
+                    tone="candidate",
+                )
             with row_columns[2]:
-                render_stock_cell(f"{stock['shares']:,}株", numeric=True)
+                render_stock_cell(
+                    f"{stock['shares']:,}株",
+                    numeric=True,
+                    tone="candidate",
+                )
             with row_columns[3]:
                 if st.button(
                     "購入",
