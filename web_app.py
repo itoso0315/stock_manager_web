@@ -815,6 +815,25 @@ with stock_tab:
             color: #475569 !important;
             background: #ffffff !important;
         }
+        [class*="st-key-held_stock_"] [data-testid="stPopoverButton"],
+        [class*="st-key-candidate_stock_"] [data-testid="stPopoverButton"] {
+            justify-content: flex-start !important;
+            width: 100% !important;
+            padding: 0.65rem 0.35rem !important;
+            border: 0 !important;
+            background: transparent !important;
+            color: var(--text-color) !important;
+            font-size: 0.95rem !important;
+            font-weight: 650 !important;
+            text-align: left !important;
+            box-shadow: none !important;
+        }
+        [class*="st-key-held_stock_"] [data-testid="stPopoverButton"]:hover {
+            color: #168653 !important;
+        }
+        [class*="st-key-candidate_stock_"] [data-testid="stPopoverButton"]:hover {
+            color: #ea580c !important;
+        }
         @media (max-width: 900px) {
             .held-total-bar {
                 grid-template-columns: 1fr 1fr;
@@ -836,7 +855,7 @@ with stock_tab:
             """,
             unsafe_allow_html=True,
         )
-        held_widths = [3.2, 1, 1, 0.85, 1.15, 1.15, 0.85, 0.8]
+        held_widths = [3.2, 1, 1, 0.85, 1.15, 1.15, 0.85]
         held_headers = [
             "銘柄名（コード）",
             "平均取得",
@@ -845,7 +864,6 @@ with stock_tab:
             "評価額",
             "評価損益",
             "損益率",
-            "売買",
         ]
         held_header_columns = st.columns(held_widths)
         for column, label in zip(held_header_columns, held_headers):
@@ -870,7 +888,6 @@ with stock_tab:
                     else 0
                 )
                 values = [
-                    f"{stock['name']}（{stock['code']}）",
                     f"{stock['average_price']:,.0f}円",
                     f"{current_price:,.0f}円",
                     f"{stock['shares']:,}株",
@@ -879,11 +896,13 @@ with stock_tab:
                     f"{profit_rate:+.1f}%",
                 ]
                 row_columns = st.columns(held_widths)
-                for index, value in enumerate(values):
-                    with row_columns[index]:
-                        render_stock_cell(value, numeric=index > 0, tone="held")
-                with row_columns[-1]:
-                    with st.popover("売買", width="stretch"):
+                with row_columns[0]:
+                    with st.popover(
+                        f"{stock['name']}（{stock['code']}）",
+                        key=f"held_stock_{stock['code']}",
+                        width="stretch",
+                    ):
+                        st.caption("売買を選択")
                         if st.button(
                             "追加購入",
                             key=f"add_purchase_{stock['code']}",
@@ -906,6 +925,9 @@ with stock_tab:
                         ):
                             st.session_state["pending_sale_code"] = stock["code"]
                             st.rerun()
+                for index, value in enumerate(values, start=1):
+                    with row_columns[index]:
+                        render_stock_cell(value, numeric=True, tone="held")
         else:
             st.markdown(
                 '<div class="stock-empty-state stock-empty-held">'
@@ -953,12 +975,10 @@ with stock_tab:
             """,
             unsafe_allow_html=True,
         )
-        candidate_widths = [3.2, 1, 0.9, 1.3]
+        candidate_widths = [3.2, 1]
         candidate_headers = [
             "銘柄名（コード）",
             "現在値",
-            "購入",
-            "一覧から削除",
         ]
         candidate_header_columns = st.columns(candidate_widths)
         for column, label in zip(candidate_header_columns, candidate_headers):
@@ -975,31 +995,33 @@ with stock_tab:
                 current_price = stock.get("current_price", stock["average_price"])
                 row_columns = st.columns(candidate_widths)
                 with row_columns[0]:
-                    render_stock_cell(
+                    with st.popover(
                         f"{stock['name']}（{stock['code']}）",
-                        tone="candidate",
-                    )
+                        key=f"candidate_stock_{stock['code']}",
+                        width="stretch",
+                    ):
+                        st.caption("操作を選択")
+                        if st.button(
+                            "購入",
+                            key=f"purchase_{stock['code']}",
+                            type="primary",
+                            width="stretch",
+                        ):
+                            st.session_state["pending_purchase_code"] = stock["code"]
+                            st.rerun()
+                        if st.button(
+                            "一覧から削除",
+                            key=f"delete_{stock['code']}",
+                            width="stretch",
+                        ):
+                            st.session_state["pending_delete_candidate_code"] = stock["code"]
+                            st.rerun()
                 with row_columns[1]:
                     render_stock_cell(
                         f"{current_price:,.0f}円",
                         numeric=True,
                         tone="candidate",
                     )
-                with row_columns[2]:
-                    if st.button(
-                        "購入",
-                        key=f"purchase_{stock['code']}",
-                        type="primary",
-                        width="stretch",
-                    ):
-                        st.session_state["pending_purchase_code"] = stock["code"]
-                with row_columns[3]:
-                    if st.button(
-                        "一覧から削除",
-                        key=f"delete_{stock['code']}",
-                        width="stretch",
-                    ):
-                        st.session_state["pending_delete_candidate_code"] = stock["code"]
         else:
             st.markdown(
                 '<div class="stock-empty-state stock-empty-candidate">'
