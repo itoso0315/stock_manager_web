@@ -647,6 +647,65 @@ def render_stock_cell(text, *, header=False, numeric=False, tone=None):
     )
 
 
+def render_held_stock_menu(stock, label, cell_key, *, numeric=False):
+    """保有銘柄の任意セルから同じ売買メニューを開く。"""
+    key_tone = "held_numeric_cell" if numeric else "held_name_cell"
+    with st.popover(
+        label,
+        key=f"{key_tone}_{stock['code']}_{cell_key}",
+        width="stretch",
+    ):
+        st.caption(f"{stock['name']}（{stock['code']}）の売買")
+        if st.button(
+            "追加購入",
+            key=f"add_purchase_{stock['code']}_{cell_key}",
+            width="stretch",
+        ):
+            st.session_state["pending_purchase_code"] = stock["code"]
+            st.rerun()
+        if st.button(
+            "一部売却",
+            key=f"partial_sale_{stock['code']}_{cell_key}",
+            disabled=stock["shares"] <= 1,
+            width="stretch",
+        ):
+            st.session_state["pending_partial_sale_code"] = stock["code"]
+            st.rerun()
+        if st.button(
+            "全売却",
+            key=f"sell_all_{stock['code']}_{cell_key}",
+            width="stretch",
+        ):
+            st.session_state["pending_sale_code"] = stock["code"]
+            st.rerun()
+
+
+def render_candidate_stock_menu(stock, label, cell_key, *, numeric=False):
+    """候補銘柄の任意セルから同じ操作メニューを開く。"""
+    key_tone = "candidate_numeric_cell" if numeric else "candidate_name_cell"
+    with st.popover(
+        label,
+        key=f"{key_tone}_{stock['code']}_{cell_key}",
+        width="stretch",
+    ):
+        st.caption(f"{stock['name']}（{stock['code']}）")
+        if st.button(
+            "購入",
+            key=f"purchase_{stock['code']}_{cell_key}",
+            type="primary",
+            width="stretch",
+        ):
+            st.session_state["pending_purchase_code"] = stock["code"]
+            st.rerun()
+        if st.button(
+            "一覧から削除",
+            key=f"delete_{stock['code']}_{cell_key}",
+            width="stretch",
+        ):
+            st.session_state["pending_delete_candidate_code"] = stock["code"]
+            st.rerun()
+
+
 held_stocks = [stock for stock in stocks if stock["shares"] > 0]
 candidate_stocks = [stock for stock in stocks if stock["shares"] == 0]
 
@@ -670,6 +729,9 @@ with stock_tab:
         .stock-grid-number {
             text-align: right;
             font-variant-numeric: tabular-nums;
+        }
+        .stock-grid-row-marker {
+            display: none;
         }
         .st-key-held_section {
             margin: 1.35rem 0 1.5rem;
@@ -815,8 +877,10 @@ with stock_tab:
             color: #475569 !important;
             background: #ffffff !important;
         }
-        [class*="st-key-held_stock_"] [data-testid="stPopoverButton"],
-        [class*="st-key-candidate_stock_"] [data-testid="stPopoverButton"] {
+        [class*="st-key-held_name_cell_"] [data-testid="stPopoverButton"],
+        [class*="st-key-held_numeric_cell_"] [data-testid="stPopoverButton"],
+        [class*="st-key-candidate_name_cell_"] [data-testid="stPopoverButton"],
+        [class*="st-key-candidate_numeric_cell_"] [data-testid="stPopoverButton"] {
             justify-content: flex-start !important;
             width: 100% !important;
             padding: 0.65rem 0.35rem !important;
@@ -828,11 +892,24 @@ with stock_tab:
             text-align: left !important;
             box-shadow: none !important;
         }
-        [class*="st-key-held_stock_"] [data-testid="stPopoverButton"]:hover {
+        [class*="st-key-held_numeric_cell_"] [data-testid="stPopoverButton"],
+        [class*="st-key-candidate_numeric_cell_"] [data-testid="stPopoverButton"] {
+            justify-content: flex-end !important;
+            font-variant-numeric: tabular-nums;
+        }
+        [class*="st-key-held_name_cell_"] [data-testid="stPopoverButton"]:hover,
+        [class*="st-key-held_numeric_cell_"] [data-testid="stPopoverButton"]:hover {
             color: #168653 !important;
         }
-        [class*="st-key-candidate_stock_"] [data-testid="stPopoverButton"]:hover {
+        [class*="st-key-candidate_name_cell_"] [data-testid="stPopoverButton"]:hover,
+        [class*="st-key-candidate_numeric_cell_"] [data-testid="stPopoverButton"]:hover {
             color: #ea580c !important;
+        }
+        [class*="st-key-held_name_cell_"] [data-testid="stPopoverButton"] svg,
+        [class*="st-key-held_numeric_cell_"] [data-testid="stPopoverButton"] svg,
+        [class*="st-key-candidate_name_cell_"] [data-testid="stPopoverButton"] svg,
+        [class*="st-key-candidate_numeric_cell_"] [data-testid="stPopoverButton"] svg {
+            display: none !important;
         }
         @media (max-width: 900px) {
             .held-total-bar {
@@ -888,6 +965,7 @@ with stock_tab:
                     else 0
                 )
                 values = [
+                    f"{stock['name']}（{stock['code']}）",
                     f"{stock['average_price']:,.0f}円",
                     f"{current_price:,.0f}円",
                     f"{stock['shares']:,}株",
@@ -896,38 +974,19 @@ with stock_tab:
                     f"{profit_rate:+.1f}%",
                 ]
                 row_columns = st.columns(held_widths)
-                with row_columns[0]:
-                    with st.popover(
-                        f"{stock['name']}（{stock['code']}）",
-                        key=f"held_stock_{stock['code']}",
-                        width="stretch",
-                    ):
-                        st.caption("売買を選択")
-                        if st.button(
-                            "追加購入",
-                            key=f"add_purchase_{stock['code']}",
-                            width="stretch",
-                        ):
-                            st.session_state["pending_purchase_code"] = stock["code"]
-                            st.rerun()
-                        if st.button(
-                            "一部売却",
-                            key=f"partial_sale_{stock['code']}",
-                            disabled=stock["shares"] <= 1,
-                            width="stretch",
-                        ):
-                            st.session_state["pending_partial_sale_code"] = stock["code"]
-                            st.rerun()
-                        if st.button(
-                            "全売却",
-                            key=f"sell_all_{stock['code']}",
-                            width="stretch",
-                        ):
-                            st.session_state["pending_sale_code"] = stock["code"]
-                            st.rerun()
-                for index, value in enumerate(values, start=1):
+                for index, value in enumerate(values):
                     with row_columns[index]:
-                        render_stock_cell(value, numeric=True, tone="held")
+                        if index == 0:
+                            st.markdown(
+                                '<span class="stock-grid-cell stock-grid-held stock-grid-row-marker"></span>',
+                                unsafe_allow_html=True,
+                            )
+                        render_held_stock_menu(
+                            stock,
+                            value,
+                            index,
+                            numeric=index > 0,
+                        )
         else:
             st.markdown(
                 '<div class="stock-empty-state stock-empty-held">'
@@ -995,32 +1054,21 @@ with stock_tab:
                 current_price = stock.get("current_price", stock["average_price"])
                 row_columns = st.columns(candidate_widths)
                 with row_columns[0]:
-                    with st.popover(
+                    st.markdown(
+                        '<span class="stock-grid-cell stock-grid-candidate stock-grid-row-marker"></span>',
+                        unsafe_allow_html=True,
+                    )
+                    render_candidate_stock_menu(
+                        stock,
                         f"{stock['name']}（{stock['code']}）",
-                        key=f"candidate_stock_{stock['code']}",
-                        width="stretch",
-                    ):
-                        st.caption("操作を選択")
-                        if st.button(
-                            "購入",
-                            key=f"purchase_{stock['code']}",
-                            type="primary",
-                            width="stretch",
-                        ):
-                            st.session_state["pending_purchase_code"] = stock["code"]
-                            st.rerun()
-                        if st.button(
-                            "一覧から削除",
-                            key=f"delete_{stock['code']}",
-                            width="stretch",
-                        ):
-                            st.session_state["pending_delete_candidate_code"] = stock["code"]
-                            st.rerun()
+                        "name",
+                    )
                 with row_columns[1]:
-                    render_stock_cell(
+                    render_candidate_stock_menu(
+                        stock,
                         f"{current_price:,.0f}円",
+                        "price",
                         numeric=True,
-                        tone="candidate",
                     )
         else:
             st.markdown(
