@@ -351,6 +351,11 @@ def stock_card_label(
         fields.append((f"{evaluation_value:,.0f}円", 14))
         fields.append((f"{profit_marker}{profit_loss:+,.0f}円", 14))
         fields.append((f"{profit_rate:+.1f}%", 10))
+    if include_evaluation:
+        return "\u00a0\u00a0".join(
+            fit_text(value, width).replace(" ", "\u00a0")
+            for value, width in fields
+        )
     return "  ".join(fit_text(value, width) for value, width in fields)
 
 
@@ -499,7 +504,7 @@ label_to_code.update({
     for stock in past_stocks
 })
 table_header = (
-    "  ".join(
+    "\u00a0\u00a0".join(
         [
             fit_text("銘柄名（コード）", 40),
             fit_text("平均取得", 12),
@@ -511,6 +516,8 @@ table_header = (
         ]
     )
 )
+table_header = table_header.replace(" ", "\u00a0")
+
 past_table_header = (
     "  ".join(
         [
@@ -661,6 +668,16 @@ with stock_tab:
             color 0.15s ease,
             background-color 0.15s ease,
             border-color 0.15s ease;
+    }
+    .sortable-container:first-of-type .sortable-container-body::before,
+    .sortable-container:first-of-type .sortable-item {
+        font-family:
+            ui-monospace, "SFMono-Regular", Menlo, Monaco,
+            Consolas, monospace !important;
+        font-variant-east-asian: full-width;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0 !important;
+        word-spacing: 0 !important;
     }
     .sortable-item:hover {
         height: auto !important;
