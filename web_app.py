@@ -46,8 +46,7 @@ st.markdown(
     <style>
     html, body, [class*="css"], [data-testid="stAppViewContainer"] {
         font-family:
-            "Noto Sans Mono CJK JP", "Osaka-Mono", "MS Gothic",
-            "SFMono-Regular", Consolas, monospace;
+            Inter, "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
     }
 
     h1, h2, h3, [data-testid="stMetricLabel"],
@@ -62,18 +61,16 @@ st.markdown(
     }
 
     .app-title {
-        margin: 0.25rem 0 1.5rem;
-        text-align: center;
+        margin: 0.1rem 0 0.8rem;
+        text-align: left;
         font-family:
             Inter, "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
-        font-size: clamp(3rem, 6vw, 5rem);
-        font-weight: 850;
+        font-size: 1.7rem;
+        font-weight: 800;
         line-height: 1;
         letter-spacing: -0.06em;
-        background: linear-gradient(120deg, #111827 20%, #2563eb 80%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+        background: none;
+        color: #152238;
     }
 
     [data-testid="stMetricValue"] {
@@ -129,16 +126,120 @@ st.markdown(
     }
 
     [data-testid="stTabs"] [data-baseweb="tab-list"] {
-        gap: 0.5rem;
+        gap: 1rem;
+        border-bottom: 1px solid #e2e8f0;
     }
 
     [data-testid="stTabs"] [data-baseweb="tab"] {
-        min-width: 10rem;
+        min-width: 8rem;
         height: 3rem;
-        padding: 0 1.25rem;
-        border-radius: 0.75rem 0.75rem 0 0;
+        padding: 0 1rem;
+        border-radius: 0;
         font-size: 1rem;
         font-weight: 700;
+    }
+
+    .stock-page-hero {
+        display: grid;
+        grid-template-columns: minmax(18rem, 1fr) minmax(34rem, 1.2fr);
+        gap: 2rem;
+        align-items: center;
+        margin: 2.2rem 0 1.8rem;
+    }
+
+    .stock-page-heading {
+        display: flex;
+        gap: 1.25rem;
+        align-items: center;
+    }
+
+    .stock-page-icon {
+        display: grid;
+        place-items: center;
+        width: 5rem;
+        height: 5rem;
+        flex: 0 0 5rem;
+        border-radius: 1.25rem;
+        background: #e8f7ef;
+        font-size: 2.35rem;
+    }
+
+    .stock-page-heading h2 {
+        margin: 0 0 0.65rem;
+        color: #152238;
+        font-size: 2rem;
+        font-weight: 850;
+    }
+
+    .stock-page-heading p {
+        margin: 0;
+        color: #526078;
+        font-size: 1rem;
+        font-weight: 550;
+    }
+
+    .stock-page-summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        padding: 1.25rem 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        background: white;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+    }
+
+    .stock-page-summary > div {
+        display: flex;
+        min-width: 0;
+        padding: 0.15rem 1.25rem;
+        flex-direction: column;
+        border-right: 1px solid #e2e8f0;
+    }
+
+    .stock-page-summary > div:last-child {
+        border-right: 0;
+    }
+
+    .stock-page-summary span {
+        color: #526078;
+        font-size: 0.9rem;
+        font-weight: 650;
+    }
+
+    .stock-page-summary strong {
+        margin-top: 0.35rem;
+        color: #22a866;
+        font-size: 1.45rem;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+        .stock-page-hero {
+            grid-template-columns: 1fr;
+        }
+        .stock-page-summary {
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+        .stock-page-summary > div {
+            border-right: 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .stock-page-summary > div:last-child {
+            border-bottom: 0;
+        }
+    }
+
+    [data-testid="stExpander"] {
+        border-color: #dbe3ea !important;
+        border-radius: 0.9rem !important;
+        background: #ffffff;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    }
+
+    [data-testid="stExpander"] summary {
+        min-height: 4.4rem;
+        font-weight: 750;
     }
     </style>
     """,
@@ -247,12 +348,29 @@ stock_tab, allocation_tab, buying_power_tab, settings_tab = st.tabs(
 # =========================
 
 with stock_tab:
-    st.subheader("📋 銘柄管理")
-    st.caption(
-        "各銘柄の行にあるボタンから、購入・全売却・削除を操作できます。"
+    hero_held_count = sum(stock["shares"] > 0 for stock in stocks)
+    st.markdown(
+        f"""
+        <div class="stock-page-hero">
+            <div class="stock-page-heading">
+                <div class="stock-page-icon">📋</div>
+                <div>
+                    <h2>銘柄管理</h2>
+                    <p>各銘柄の行にあるボタンから、購入・全売却・削除を操作できます。</p>
+                </div>
+            </div>
+            <div class="stock-page-summary">
+                <div><span>保有銘柄数</span><strong>{hero_held_count} 銘柄</strong></div>
+                <div><span>評価額合計</span><strong>{stock_value:,.0f} 円</strong></div>
+                <div><span>評価損益</span><strong>{profit_loss:+,.0f} 円</strong></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     with st.expander("➕ 新しい銘柄を候補銘柄に追加", expanded=not stocks):
+        st.caption("日本株の銘柄コードを入力して候補リストへ追加できます。")
         with st.form("add_stock_form", clear_on_submit=True):
             stock_code_input = st.text_input(
                 "日本株の銘柄コード",
@@ -452,6 +570,70 @@ with stock_tab:
             text-align: right;
             font-variant-numeric: tabular-nums;
         }
+        .portfolio-section-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 1.35rem 0 0.85rem;
+            padding: 0.2rem 0.1rem;
+        }
+        .portfolio-section-title > div {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+        .portfolio-section-title > div > span {
+            width: 1.15rem;
+            height: 1.15rem;
+            flex: 0 0 1.15rem;
+            border-radius: 999px;
+        }
+        .held-title > div > span { background: #31b56f; }
+        .candidate-title > div > span { background: #f97316; }
+        .portfolio-section-title h3 {
+            margin: 0;
+            color: #152238;
+            font-size: 1.4rem;
+            font-weight: 850;
+        }
+        .portfolio-section-title p {
+            margin: 0.2rem 0 0;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        .portfolio-section-title > strong {
+            padding: 0.45rem 0.8rem;
+            border-radius: 0.55rem;
+            font-size: 0.9rem;
+        }
+        .held-title > strong {
+            color: #168653;
+            background: #e8f7ef;
+        }
+        .candidate-title > strong {
+            color: #ea580c;
+            background: #fff0e5;
+        }
+        .held-total-bar {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr 1fr;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 0.6rem 0 1.4rem;
+            padding: 0.9rem 1.15rem;
+            border: 1px solid #ccebd9;
+            border-radius: 0.75rem;
+            background: linear-gradient(90deg, #f0faf5, #eaf8f1);
+            color: #274238;
+        }
+        .held-total-bar span {
+            font-weight: 700;
+        }
+        .held-total-bar strong {
+            color: #168653;
+            text-align: right;
+            font-size: 1.05rem;
+        }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-cell) {
             align-items: center;
             margin-bottom: 0.35rem;
@@ -461,35 +643,63 @@ with stock_tab:
             transition: background-color 0.15s ease, border-color 0.15s ease;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-held.stock-grid-header) {
-            border-color: rgba(34, 197, 94, 0.34);
-            background: rgba(34, 197, 94, 0.20);
+            border-color: #ccebd9;
+            background: #eaf8f1;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-held):not(:has(.stock-grid-header)) {
-            border-color: rgba(34, 197, 94, 0.22);
-            background: rgba(34, 197, 94, 0.08);
+            border-color: #dce7e1;
+            background: #ffffff;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate.stock-grid-header) {
-            border-color: rgba(249, 115, 22, 0.36);
-            background: rgba(249, 115, 22, 0.20);
+            border-color: #fed7ba;
+            background: #fff1e7;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate):not(:has(.stock-grid-header)) {
-            border-color: rgba(249, 115, 22, 0.24);
-            background: rgba(249, 115, 22, 0.08);
+            border-color: #f5dfd0;
+            background: #ffffff;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-held):not(:has(.stock-grid-header)):hover {
-            border-color: rgba(34, 197, 94, 0.48);
-            background: rgba(34, 197, 94, 0.14);
+            border-color: #8bd5ad;
+            background: #f7fcf9;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate):not(:has(.stock-grid-header)):hover {
-            border-color: rgba(249, 115, 22, 0.50);
-            background: rgba(249, 115, 22, 0.14);
+            border-color: #fdba8c;
+            background: #fffaf7;
+        }
+        [class*="st-key-sell_all_"] button {
+            border-color: #71c99a !important;
+            color: #168653 !important;
+            background: #ffffff !important;
+        }
+        [class*="st-key-purchase_"] button {
+            border-color: #ef4444 !important;
+            color: white !important;
+            background: #ef4444 !important;
+        }
+        [class*="st-key-delete_"] button {
+            border-color: #cbd5e1 !important;
+            color: #475569 !important;
+            background: #ffffff !important;
+        }
+        @media (max-width: 900px) {
+            .held-total-bar {
+                grid-template-columns: 1fr 1fr;
+            }
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    st.markdown("#### 🟢 保有銘柄")
+    st.markdown(
+        f"""
+        <div class="portfolio-section-title held-title">
+            <div><span></span><div><h3>保有銘柄</h3><p>現在保有している銘柄の一覧です。</p></div></div>
+            <strong>{len(held_stocks)} 銘柄</strong>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     held_widths = [3.2, 1, 1, 0.85, 1.15, 1.15, 0.85, 0.8]
     held_headers = [
         "銘柄名（コード）",
@@ -546,7 +756,44 @@ with stock_tab:
     else:
         st.info("保有銘柄はありません。")
 
-    st.markdown("#### 🟠 候補銘柄")
+    held_evaluation_total = sum(
+        stock.get("current_price", stock["average_price"]) * stock["shares"]
+        for stock in held_stocks
+    )
+    held_profit_total = sum(
+        (
+            stock.get("current_price", stock["average_price"])
+            - stock["average_price"]
+        )
+        * stock["shares"]
+        for stock in held_stocks
+    )
+    held_profit_rate = (
+        held_profit_total
+        / sum(stock["average_price"] * stock["shares"] for stock in held_stocks)
+        * 100
+        if sum(stock["average_price"] * stock["shares"] for stock in held_stocks) > 0
+        else 0
+    )
+    st.markdown(
+        f"""
+        <div class="held-total-bar">
+            <span>📈 保有銘柄評価額合計</span><strong>{held_evaluation_total:,.0f} 円</strong>
+            <span>評価損益合計</span><strong>{held_profit_total:+,.0f} 円 ({held_profit_rate:+.1f}%)</strong>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div class="portfolio-section-title candidate-title">
+            <div><span></span><div><h3>候補銘柄</h3><p>購入を検討している銘柄の一覧です。</p></div></div>
+            <strong>{len(candidate_stocks)} 銘柄</strong>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     candidate_widths = [3.2, 1, 0.85, 0.8, 0.8]
     candidate_headers = [
         "銘柄名（コード）",
