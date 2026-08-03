@@ -6,12 +6,16 @@ import plotly.express as px
 from streamlit_sortables import sort_items
 
 from api import (
-    JAPANESE_STOCK_CODE_PATTERN,
     fetch_current_price,
     fetch_stock_info,
     get_yahoo_symbol,
 )
-from database import load_initial_capital, load_stocks, save_stocks
+from database import (
+    load_initial_capital,
+    load_stocks,
+    save_initial_capital,
+    save_stocks,
+)
 from services.portfolio_service import (
     build_allocation_data,
     calculate_annual_dividend,
@@ -21,9 +25,10 @@ from services.portfolio_service import (
     calculate_unrealized_profit,
 )
 from stock import (
+    JAPANESE_STOCK_CODE_PATTERN,
     cash_balance as calculate_cash_balance,
     create_candidate,
-    normalize_input,
+    normalize_stock_code,
     set_share_count,
 )
 from web_navigation import render_sidebar_navigation
@@ -222,8 +227,8 @@ with col4:
     st.metric("年間配当", f"{annual_dividend:,.0f}円")
 
 st.divider()  
-stock_tab, allocation_tab, buying_power_tab = st.tabs(
-    ["📋 銘柄管理", "🥧 資産配分", "💰 余力資金"]
+stock_tab, allocation_tab, buying_power_tab, settings_tab = st.tabs(
+    ["📋 銘柄管理", "🥧 資産配分", "💰 余力資金", "⚙️ 設定"]
 )
 
 # =========================
@@ -250,7 +255,7 @@ with stock_tab:
             )
 
         if add_stock_submitted:
-            normalized_code = normalize_input(stock_code_input).strip().upper()
+            normalized_code = normalize_stock_code(stock_code_input)
             existing_codes = {stock["code"] for stock in stocks}
 
             if not JAPANESE_STOCK_CODE_PATTERN.fullmatch(normalized_code):
@@ -808,6 +813,45 @@ with allocation_tab:
 # =========================
 # 余力資金
 # =========================
+
+with settings_tab:
+    st.subheader("⚙️ 設定")
+    st.markdown("### 総資産の基準額")
+    st.caption(
+        "運用開始時の資金を設定します。"
+        "保有株の売買損益に応じて、現在の総資産はこの金額から変動します。"
+    )
+
+    setting_col, current_col = st.columns(2)
+    with setting_col:
+        st.metric("現在の基準額", f"{initial_capital:,.0f}円")
+    with current_col:
+        st.metric("現在の総資産", f"{total_assets:,.0f}円")
+
+    settings_message = st.session_state.pop("settings_message", None)
+    if settings_message:
+        st.success(settings_message)
+
+    with st.form("initial_capital_form"):
+        new_initial_capital = st.number_input(
+            "運用開始資金",
+            min_value=1,
+            value=int(initial_capital),
+            step=100_000,
+            format="%d",
+            help="1円以上の金額を入力してください。",
+        )
+        save_settings = st.form_submit_button(
+            "設定を保存", type="primary", width="stretch"
+        )
+
+    if save_settings:
+        save_initial_capital(int(new_initial_capital))
+        st.session_state["settings_message"] = (
+            f"総資産の基準額を{int(new_initial_capital):,}円に変更しました。"
+        )
+        st.rerun()
+
 
 with buying_power_tab:
     st.subheader("💰 余力資金")

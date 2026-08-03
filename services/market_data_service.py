@@ -1,7 +1,6 @@
 """Yahoo Financeから株価情報を取得するサービス。"""
 
 import json
-import re
 import ssl
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -9,13 +8,10 @@ from urllib.request import Request, urlopen
 import certifi
 import yfinance as yf
 
-from stock import normalize_input
+from stock import JAPANESE_STOCK_CODE_PATTERN, normalize_stock_code
 
 
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-JAPANESE_STOCK_CODE_PATTERN = re.compile(
-    r"^[0-9][0-9A-Z][0-9][0-9A-Z]$"
-)
 YAHOO_CHART_URLS = (
     "https://query1.finance.yahoo.com/v8/finance/chart/"
     "{symbol}?range=1d&interval=1m",
@@ -27,7 +23,7 @@ YAHOO_USER_AGENT = "stock-manager/1.0"
 
 def get_yahoo_symbol(code):
     """4文字の日本株コードにはYahoo Finance用の.Tを付ける。"""
-    normalized_code = normalize_input(code).strip().upper()
+    normalized_code = normalize_stock_code(code)
     if JAPANESE_STOCK_CODE_PATTERN.fullmatch(normalized_code):
         return f"{normalized_code}.T"
     return normalized_code
@@ -73,6 +69,23 @@ def _fetch_yahoo_chart_meta(symbol):
     raise RuntimeError("Yahoo Financeの取得先が設定されていません。")
 
 
+def _fetch_yfinance_price(symbol):
+    """直接APIが利用できない環境ではyfinance経由で直近値を取得する。"""
+    ticker = yf.Ticker(symbol)
+    fast_info = ticker.fast_info
+    for key in (
+        "lastPrice",
+        "last_price",
+        "regularMarketPreviousClose",
+        "previousClose",
+        "previous_close",
+    ):
+        price = fast_info.get(key)
+        if price is not None:
+            return float(price)
+    raise ValueError("yfinanceの応答に株価がありません。")
+
+
 def fetch_current_quote(code):
     """銘柄コードからYahooシンボル、meta、現在値を返す。"""
     symbol = get_yahoo_symbol(code)
@@ -93,10 +106,14 @@ def fetch_current_quote(code):
         IndexError,
         TypeError,
         ValueError,
-    ) as error:
-        raise RuntimeError(
-            f"{symbol} の株価を取得できませんでした。"
-        ) from error
+    ) as direct_error:
+        try:
+            price = _fetch_yfinance_price(symbol)
+            return symbol, {"symbol": symbol, "regularMarketPrice": price}, price
+        except Exception as fallback_error:
+            raise RuntimeError(
+                f"{symbol} の株価を取得できませんでした。"
+            ) from fallback_error
 
 
 def fetch_current_price(code):

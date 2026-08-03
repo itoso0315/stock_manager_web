@@ -15,6 +15,8 @@ class YahooSymbolTest(unittest.TestCase):
     def test_adds_t_suffix_to_japanese_stock_code(self):
         self.assertEqual(market_data_service.get_yahoo_symbol("8058"), "8058.T")
         self.assertEqual(market_data_service.get_yahoo_symbol("285A"), "285A.T")
+        self.assertEqual(market_data_service.get_yahoo_symbol("9A76"), "9A76.T")
+        self.assertEqual(market_data_service.get_yahoo_symbol("9A7A"), "9A7A.T")
 
     def test_keeps_overseas_ticker_unchanged(self):
         self.assertEqual(market_data_service.get_yahoo_symbol("AAPL"), "AAPL")
@@ -115,6 +117,10 @@ class YahooCurrentPriceTest(unittest.TestCase):
                 "services.market_data_service.json.load",
                 return_value=data,
             ),
+            patch(
+                "services.market_data_service._fetch_yfinance_price",
+                side_effect=ValueError("fallback unavailable"),
+            ),
         ):
             with self.assertRaisesRegex(
                 RuntimeError,
@@ -149,12 +155,42 @@ class YahooCurrentPriceTest(unittest.TestCase):
                 "services.market_data_service.json.load",
                 side_effect=ValueError("invalid json"),
             ),
+            patch(
+                "services.market_data_service._fetch_yfinance_price",
+                side_effect=ValueError("fallback unavailable"),
+            ),
         ):
             with self.assertRaisesRegex(
                 RuntimeError,
                 r"^8058\.T の株価を取得できませんでした。$",
             ):
                 market_data_service.fetch_current_price("8058")
+
+    def test_uses_yfinance_fallback_for_alphanumeric_code(self):
+        with (
+            patch(
+                "services.market_data_service.urlopen",
+                side_effect=URLError("direct API unavailable"),
+            ),
+            patch(
+                "services.market_data_service._fetch_yfinance_price",
+                return_value=2_850.0,
+            ) as fallback,
+        ):
+            symbol, meta, price = market_data_service.fetch_current_quote("285A")
+
+        self.assertEqual(symbol, "285A.T")
+        self.assertEqual(price, 2_850.0)
+        self.assertEqual(meta["regularMarketPrice"], 2_850.0)
+        fallback.assert_called_once_with("285A.T")
+
+    def test_yfinance_price_accepts_current_camel_case_keys(self):
+        ticker = MagicMock()
+        ticker.fast_info = {"lastPrice": 2_850.0}
+        with patch("services.market_data_service.yf.Ticker", return_value=ticker):
+            price = market_data_service._fetch_yfinance_price("285A.T")
+
+        self.assertEqual(price, 2_850.0)
 
     def test_converts_empty_result_to_runtime_error(self):
         self.assert_fetch_error(data={"chart": {"result": []}})

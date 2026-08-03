@@ -8,14 +8,11 @@ from urllib.request import Request, urlopen
 import certifi
 
 from services import market_data_service
-from stock import normalize_input
+from stock import JAPANESE_STOCK_CODE_PATTERN, normalize_stock_code
 
 
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
-# JPXの株式固有名コードは4文字。従来の数字4桁に加え、2024年以降は
-# 2桁目・4桁目に英字を含むコード（例: 285A、9A76、9A7A）も使われる。
-JAPANESE_STOCK_CODE_PATTERN = re.compile(r"^[0-9A-Z]{4}$")
 MINKABU_STOCK_URL = "https://minkabu.jp/stock/{code}"
 MINKABU_DIVIDEND_URL = "https://minkabu.jp/stock/{code}/dividend"
 
@@ -49,7 +46,7 @@ def parse_minkabu_stock_name(page_html, code):
 
 def fetch_japanese_stock_name(code):
     """みんかぶから日本語銘柄名を取得し、失敗時はNoneを返す。"""
-    normalized_code = normalize_input(code).strip().upper()
+    normalized_code = normalize_stock_code(code)
     if not JAPANESE_STOCK_CODE_PATTERN.fullmatch(normalized_code):
         return None
     request = Request(
@@ -78,7 +75,7 @@ def parse_minkabu_dividend_months(page_html):
 
 def fetch_dividend_months(code):
     """みんかぶから配当権利確定月を取得する。"""
-    normalized_code = normalize_input(code).strip().upper()
+    normalized_code = normalize_stock_code(code)
     if not JAPANESE_STOCK_CODE_PATTERN.fullmatch(normalized_code):
         return []
     request = Request(

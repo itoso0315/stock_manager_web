@@ -4,7 +4,9 @@ from stock import (
     INITIAL_CAPITAL,
     cash_balance,
     create_candidate,
+    JAPANESE_STOCK_CODE_PATTERN,
     normalize_input,
+    normalize_stock_code,
     reset_portfolio,
     set_share_count,
 )
@@ -13,6 +15,19 @@ from stock import (
 class NormalizeInputTest(unittest.TestCase):
     def test_normalizes_full_width_alphanumeric_stock_code(self):
         self.assertEqual(normalize_input("２８５ａ").strip().upper(), "285A")
+
+    def test_normalizes_stock_code_to_half_width_uppercase(self):
+        self.assertEqual(normalize_stock_code(" ９ａ７ａ "), "9A7A")
+
+    def test_accepts_all_jpx_alphanumeric_code_positions(self):
+        for code in ("130A", "987A", "9A76", "9A7A", "285A", "7203"):
+            with self.subTest(code=code):
+                self.assertIsNotNone(JAPANESE_STOCK_CODE_PATTERN.fullmatch(code))
+
+    def test_rejects_letters_in_invalid_positions_or_excluded_letters(self):
+        for code in ("A123", "12A3", "1B23", "123E", "AAPL"):
+            with self.subTest(code=code):
+                self.assertIsNone(JAPANESE_STOCK_CODE_PATTERN.fullmatch(code))
 
 
 class CashBalanceTest(unittest.TestCase):

@@ -1,13 +1,22 @@
 from datetime import datetime
+import re
 import unicodedata
 
 
 INITIAL_CAPITAL = 10_000_000
+JAPANESE_STOCK_CODE_PATTERN = re.compile(
+    r"^[0-9][0-9ACDFGHJKLMNPRSTUWXY][0-9][0-9ACDFGHJKLMNPRSTUWXY]$"
+)
 
 
 def normalize_input(value):
     """全角の数字・英字を含む入力を半角へ正規化する。"""
     return unicodedata.normalize("NFKC", value)
+
+
+def normalize_stock_code(value):
+    """日本株コードを半角の大文字へ正規化する。"""
+    return normalize_input(value).strip().upper()
 
 
 def create_stock(code, stock_info, shares, average_price):
