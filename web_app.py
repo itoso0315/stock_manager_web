@@ -505,7 +505,7 @@ def show_delete_candidate_dialog(stock):
             st.rerun()
     with delete_col:
         if st.button(
-            "削除する",
+            "一覧から削除",
             key="confirm_candidate_delete",
             type="primary",
             width="stretch",
@@ -648,7 +648,7 @@ with stock_tab:
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-held):not(:has(.stock-grid-header)) {
             border-color: #dce7e1;
-            background: #ffffff;
+            background: #f0faf5;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate.stock-grid-header) {
             border-color: #fed7ba;
@@ -656,15 +656,32 @@ with stock_tab:
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate):not(:has(.stock-grid-header)) {
             border-color: #f5dfd0;
-            background: #ffffff;
+            background: #fff7ed;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-held):not(:has(.stock-grid-header)):hover {
             border-color: #8bd5ad;
-            background: #f7fcf9;
+            background: #e5f7ed;
         }
         [data-testid="stHorizontalBlock"]:has(.stock-grid-candidate):not(:has(.stock-grid-header)):hover {
             border-color: #fdba8c;
-            background: #fffaf7;
+            background: #ffeddc;
+        }
+        .stock-empty-state {
+            margin: 0.4rem 0 0.8rem;
+            padding: 1.1rem 1.25rem;
+            border: 1px solid;
+            border-radius: 0.75rem;
+            font-weight: 650;
+        }
+        .stock-empty-held {
+            border-color: #ccebd9;
+            color: #168653;
+            background: #f0faf5;
+        }
+        .stock-empty-candidate {
+            border-color: #fed7ba;
+            color: #c2410c;
+            background: #fff7ed;
         }
         [class*="st-key-sell_all_"] button {
             border-color: #71c99a !important;
@@ -754,7 +771,11 @@ with stock_tab:
                 ):
                     st.session_state["pending_sale_code"] = stock["code"]
     else:
-        st.info("保有銘柄はありません。")
+        st.markdown(
+            '<div class="stock-empty-state stock-empty-held">'
+            "保有銘柄はありません。</div>",
+            unsafe_allow_html=True,
+        )
 
     held_evaluation_total = sum(
         stock.get("current_price", stock["average_price"]) * stock["shares"]
@@ -794,13 +815,12 @@ with stock_tab:
         """,
         unsafe_allow_html=True,
     )
-    candidate_widths = [3.2, 1, 0.85, 0.8, 0.8]
+    candidate_widths = [3.2, 1, 0.9, 1.3]
     candidate_headers = [
         "銘柄名（コード）",
         "現在値",
-        "保有数",
         "購入",
-        "削除",
+        "一覧から削除",
     ]
     candidate_header_columns = st.columns(candidate_widths)
     for column, label in zip(candidate_header_columns, candidate_headers):
@@ -828,12 +848,6 @@ with stock_tab:
                     tone="candidate",
                 )
             with row_columns[2]:
-                render_stock_cell(
-                    f"{stock['shares']:,}株",
-                    numeric=True,
-                    tone="candidate",
-                )
-            with row_columns[3]:
                 if st.button(
                     "購入",
                     key=f"purchase_{stock['code']}",
@@ -841,32 +855,19 @@ with stock_tab:
                     width="stretch",
                 ):
                     st.session_state["pending_purchase_code"] = stock["code"]
-            with row_columns[4]:
+            with row_columns[3]:
                 if st.button(
-                    "削除",
+                    "一覧から削除",
                     key=f"delete_{stock['code']}",
                     width="stretch",
                 ):
                     st.session_state["pending_delete_candidate_code"] = stock["code"]
     else:
-        st.info("候補銘柄はありません。")
-
-    with st.expander("📈 Yahooチャートを開く"):
-        for section_name, section_stocks in (
-            ("保有銘柄", held_stocks),
-            ("候補銘柄", candidate_stocks),
-        ):
-            st.markdown(f"**{section_name}**")
-            if section_stocks:
-                for stock in section_stocks:
-                    yahoo_symbol = get_yahoo_symbol(stock["code"])
-                    st.link_button(
-                        f"📈 {stock['name']}（{stock['code']}）",
-                        f"https://finance.yahoo.co.jp/quote/{yahoo_symbol}/chart",
-                        width="stretch",
-                    )
-            else:
-                st.caption(f"{section_name}はありません。")
+        st.markdown(
+            '<div class="stock-empty-state stock-empty-candidate">'
+            "候補銘柄はありません。</div>",
+            unsafe_allow_html=True,
+        )
 
 pending_purchase_code = st.session_state.get("pending_purchase_code")
 pending_sale_code = st.session_state.get("pending_sale_code")
