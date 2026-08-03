@@ -8,6 +8,7 @@ from api import (
     fetch_current_price,
     fetch_stock_info,
     get_yahoo_symbol,
+    search_japanese_stocks,
 )
 from database import (
     load_initial_capital,
@@ -27,6 +28,7 @@ from stock import (
     JAPANESE_STOCK_CODE_PATTERN,
     cash_balance as calculate_cash_balance,
     create_candidate,
+    normalize_input,
     normalize_stock_code,
     set_share_count,
 )
@@ -371,40 +373,82 @@ with stock_tab:
     )
 
     with st.expander("➕ 新しい銘柄を候補銘柄に追加", expanded=not stocks):
-        st.caption("日本株の銘柄コードを入力して候補リストへ追加できます。")
+        st.caption("日本株の銘柄コードまたは会社名で検索して、候補リストへ追加できます。")
         with st.form("add_stock_form", clear_on_submit=True):
-            stock_code_input = st.text_input(
-                "日本株の銘柄コード",
-                placeholder="例：7203、285A",
-                max_chars=4,
-                help="全角の数字・英字にも対応しています。4文字で入力してください。",
+            stock_query_input = st.text_input(
+                "銘柄コード・会社名",
+                placeholder="例：7203、285A、トヨタ自動車",
+                help="銘柄コードは全角の数字・英字にも対応しています。会社名は一部だけでも検索できます。",
             )
             add_stock_submitted = st.form_submit_button(
-                "候補銘柄に追加", type="primary", width="stretch"
+                "検索／コードで追加", type="primary", width="stretch"
             )
 
         if add_stock_submitted:
-            normalized_code = normalize_stock_code(stock_code_input)
+            normalized_query = normalize_input(stock_query_input).strip()
+            normalized_code = normalize_stock_code(normalized_query)
             existing_codes = {stock["code"] for stock in stocks}
 
-            if not JAPANESE_STOCK_CODE_PATTERN.fullmatch(normalized_code):
-                st.error("銘柄コードを4文字で入力してください。")
-            elif normalized_code in existing_codes:
-                st.warning("この銘柄はすでに登録されています。")
+            if not normalized_query:
+                st.error("銘柄コードまたは会社名を入力してください。")
+            elif JAPANESE_STOCK_CODE_PATTERN.fullmatch(normalized_code):
+                if normalized_code in existing_codes:
+                    st.warning("この銘柄はすでに登録されています。")
+                else:
+                    try:
+                        with st.spinner("銘柄情報を取得中…"):
+                            stock_info = fetch_stock_info(normalized_code)
+                    except RuntimeError as error:
+                        st.error(f"銘柄情報を取得できませんでした。{error}")
+                    else:
+                        stocks.append(create_candidate(normalized_code, stock_info))
+                        save_stocks(stocks)
+                        st.session_state.pop("stock_search_results", None)
+                        st.session_state["stock_board_version"] = (
+                            st.session_state.get("stock_board_version", 0) + 1
+                        )
+                        st.session_state["stock_added_message"] = (
+                            f"{stock_info['name']}（{normalized_code}）を追加しました。"
+                        )
+                        st.rerun()
             else:
+                with st.spinner("Yahooで会社名を検索中…"):
+                    search_results = search_japanese_stocks(normalized_query)
+                if search_results:
+                    st.session_state["stock_search_results"] = search_results
+                    st.rerun()
+                else:
+                    st.error("該当する日本株が見つかりませんでした。会社名を変えてお試しください。")
+
+        search_results = st.session_state.get("stock_search_results", [])
+        if search_results:
+            result_options = {
+                f"{result['name']}（{result['code']}）": result["code"]
+                for result in search_results
+            }
+            selected_result = st.selectbox("検索結果", list(result_options))
+            selected_code = result_options[selected_result]
+            if selected_code in {stock["code"] for stock in stocks}:
+                st.warning("この銘柄はすでに登録されています。")
+            elif st.button(
+                "選択した銘柄を候補銘柄に追加",
+                type="primary",
+                width="stretch",
+            ):
                 try:
                     with st.spinner("銘柄情報を取得中…"):
-                        stock_info = fetch_stock_info(normalized_code)
+                        stock_info = fetch_stock_info(selected_code)
                 except RuntimeError as error:
                     st.error(f"銘柄情報を取得できませんでした。{error}")
                 else:
-                    stocks.append(create_candidate(normalized_code, stock_info))
+                    stocks.append(create_candidate(selected_code, stock_info))
                     save_stocks(stocks)
+                    st.session_state.pop("stock_search_results", None)
                     st.session_state["stock_board_version"] = (
                         st.session_state.get("stock_board_version", 0) + 1
                     )
                     st.session_state["stock_added_message"] = (
-                        f"{stock_info['name']}（{normalized_code}）を追加しました。"
+                        f"{stock_info['name']}（{selected_code}）を追加しました。"
                     )
                     st.rerun()
 
@@ -428,7 +472,7 @@ def show_purchase_dialog(stock):
     purchase_shares = st.number_input(
         "購入株数",
         min_value=1,
-        value=100,
+        value=1,
         step=1,
         format="%d",
     )

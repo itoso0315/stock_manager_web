@@ -3,6 +3,7 @@ from html import unescape
 import re
 import ssl
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import certifi
@@ -16,6 +17,7 @@ SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 MINKABU_STOCK_URL = "https://minkabu.jp/stock/{code}"
 MINKABU_DIVIDEND_URL = "https://minkabu.jp/stock/{code}/dividend"
 YAHOO_JAPAN_STOCK_URL = "https://finance.yahoo.co.jp/quote/{symbol}"
+YAHOO_SEARCH_URL = "https://finance.yahoo.co.jp/search/"
 
 
 def get_yahoo_symbol(code):
@@ -105,6 +107,47 @@ def fetch_yahoo_japan_stock_name(code):
         return parse_yahoo_japan_stock_name(page_html, normalized_code)
     except (HTTPError, URLError, TimeoutError, ValueError):
         return None
+
+
+def parse_yahoo_japan_search_results(page_html):
+    """Yahoo!ファイナンス日本版の検索ページから日本株を抽出する。"""
+    results = []
+    seen_codes = set()
+    matches = re.findall(
+        r'<a[^>]+href="https://finance\.yahoo\.co\.jp/quote/'
+        r'([0-9A-Z]+)\.T"[^>]*>.*?<h2[^>]*>(.*?)</h2>',
+        page_html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for code, name_html in matches:
+        code = code.upper()
+        if not JAPANESE_STOCK_CODE_PATTERN.fullmatch(code) or code in seen_codes:
+            continue
+        name = " ".join(unescape(re.sub(r"<[^>]+>", "", name_html)).split())
+        name = re.sub(r"\s*[（(]株[）)]\s*$", "", name).strip()
+        if not name:
+            continue
+        results.append({"code": code, "name": name})
+        seen_codes.add(code)
+    return results
+
+
+def search_japanese_stocks(query, limit=10):
+    """会社名などのキーワードでYahooから日本株を検索する。"""
+    cleaned_query = str(query).strip()
+    if not cleaned_query:
+        return []
+    parameters = urlencode({"query": cleaned_query})
+    request = Request(
+        f"{YAHOO_SEARCH_URL}?{parameters}",
+        headers={"User-Agent": "Mozilla/5.0 (stock-manager/1.0)"},
+    )
+    try:
+        with urlopen(request, timeout=10, context=SSL_CONTEXT) as response:
+            page_html = response.read().decode("utf-8", errors="replace")
+        return parse_yahoo_japan_search_results(page_html)[:limit]
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        return []
 
 
 def parse_minkabu_dividend_months(page_html):

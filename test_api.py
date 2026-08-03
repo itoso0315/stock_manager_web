@@ -5,6 +5,7 @@ import api
 from api import (
     parse_minkabu_dividend_months,
     parse_minkabu_stock_name,
+    parse_yahoo_japan_search_results,
     parse_yahoo_japan_stock_name,
 )
 
@@ -41,6 +42,27 @@ class YahooJapanStockNameTest(unittest.TestCase):
         self.assertEqual(
             parse_yahoo_japan_stock_name(page_html, "285A"),
             "キオクシアホールディングス",
+        )
+
+    def test_search_results_extract_japanese_company_names(self):
+        page_html = """
+        <a href="https://finance.yahoo.co.jp/quote/7203.T">
+          <h2><strong>トヨタ自動車</strong>(株)</h2>
+        </a>
+        <a href="https://finance.yahoo.co.jp/quote/285A.T">
+          <h2>キオクシアホールディングス(株)</h2>
+        </a>
+        <a href="https://finance.yahoo.co.jp/quote/AAPL">
+          <h2>Apple Inc.</h2>
+        </a>
+        """
+
+        self.assertEqual(
+            parse_yahoo_japan_search_results(page_html),
+            [
+                {"code": "7203", "name": "トヨタ自動車"},
+                {"code": "285A", "name": "キオクシアホールディングス"},
+            ],
         )
 
 
