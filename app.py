@@ -89,7 +89,7 @@ class StockManagerApp(tk.Tk):
         list_switch = tk.Frame(portfolio_tab, background=self.APP_BACKGROUND, pady=4)
         list_switch.pack(fill="x")
         self.list_mode_buttons = {}
-        for mode, label in (("purchased", "保有銘柄"), ("candidate", "候補銘柄（過去保有銘柄）")):
+        for mode, label in (("purchased", "保有銘柄"), ("candidate", "候補銘柄")):
             button = tk.Label(
                 list_switch,
                 text=label,
@@ -560,7 +560,7 @@ class StockManagerApp(tk.Tk):
         self.after_idle(self._draw_allocation_chart)
         if hasattr(self, "ai_prompt_text"):
             self.after_idle(self._build_ai_prompt)
-        mode_name = "保有銘柄" if self.list_mode == "purchased" else "候補銘柄（過去保有銘柄）"
+        mode_name = "保有銘柄" if self.list_mode == "purchased" else "候補銘柄"
         self.status.set(f"{mode_name}: {len(displayed_stocks)}件")
 
     def _displayed_stocks(self):

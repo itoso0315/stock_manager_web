@@ -238,8 +238,8 @@ stock_tab, allocation_tab, buying_power_tab, settings_tab = st.tabs(
 with stock_tab:
     st.subheader("📋 銘柄管理")
     st.caption(
-        "過去保有銘柄を保有銘柄へ移すと購入。"
-        "保有銘柄を過去保有銘柄へ移すと全売却。"
+        "候補銘柄を保有銘柄へ移すと購入。"
+        "保有銘柄を候補銘柄へ移すと全売却。"
     )
 
     with st.expander("➕ 新しい銘柄を追加", expanded=not stocks):
@@ -309,7 +309,7 @@ def stock_card_label(
     name_width=22,
 ):
     current_price = stock.get("current_price", stock["average_price"])
-    stock_name = fit_text(stock["name"], name_width)
+    stock_name = f"{stock['name']}（{stock['code']}）"
     evaluation_value = current_price * stock["shares"]
 
     profit_loss = (current_price - stock["average_price"]) * stock["shares"]
@@ -335,7 +335,7 @@ def stock_card_label(
         fields.append(f"{evaluation_value:>9,.0f}円")
         fields.append(f"{profit_marker}{profit_loss:>+8,.0f}円")
         fields.append(f"{profit_rate:+5.1f}%")
-    return "\t".join(fields)
+    return "　｜　".join(fields)
 
 
 def reset_stock_board():
@@ -390,7 +390,7 @@ def show_sell_all_dialog(stock):
     st.write(f"保有数：{stock['shares']:,}株")
     st.write(f"売却単価：{current_price:,.0f}円")
     st.caption(f"売却予定額：{sale_value:,.0f}円")
-    st.warning("この銘柄を全売却し、過去保有銘柄へ移動します。")
+    st.warning("この銘柄を全売却し、候補銘柄へ移動します。")
 
     cancel_col, sale_col = st.columns(2)
     with cancel_col:
@@ -449,9 +449,9 @@ label_to_code.update({
     for stock in past_stocks
 })
 table_header = (
-    "\t".join(
+    "　｜　".join(
         [
-            fit_text("銘柄名", 22),
+            "銘柄名（コード）",
             "平均取得",
             "現在値",
             "保有数",
@@ -462,9 +462,9 @@ table_header = (
     )
 )
 past_table_header = (
-    "\t".join(
+    "　｜　".join(
         [
-            fit_text("銘柄名", 30),
+            "銘柄名（コード）",
             "現在値",
             "保有数",
         ]
@@ -475,7 +475,7 @@ with stock_tab:
     sorted_stock_lists = sort_items(
         [
             {"header": "保有銘柄", "items": held_labels},
-            {"header": "過去保有銘柄", "items": past_labels},
+            {"header": "候補銘柄", "items": past_labels},
         ],
         multi_containers=True,
         direction="vertical",
@@ -553,8 +553,7 @@ with stock_tab:
         background: #f8fafc;
         color: #475569;
         font-family:
-            "Osaka-Mono", "Noto Sans Mono CJK JP", "MS Gothic",
-            "SFMono-Regular", Consolas, monospace;
+            Inter, "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
         font-size: 0.9rem;
         line-height: 1.35;
         font-weight: 600;
@@ -562,7 +561,7 @@ with stock_tab:
         letter-spacing: 0;
         text-align: left;
         tab-size: 12;
-        white-space: pre;
+        white-space: normal;
     }
     .sortable-component.vertical
         .sortable-container:nth-of-type(2)
@@ -596,8 +595,7 @@ with stock_tab:
         cursor: grab;
         touch-action: pan-y;
         font-family:
-            "Osaka-Mono", "Noto Sans Mono CJK JP", "MS Gothic",
-            "SFMono-Regular", Consolas, monospace;
+            Inter, "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
         font-size: 0.9rem;
         line-height: 1.35;
         font-weight: 600;
@@ -605,8 +603,9 @@ with stock_tab:
         letter-spacing: 0;
         text-align: left !important;
         tab-size: 12;
-        white-space: pre;
-        overflow: hidden;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        overflow: visible;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
         transition:
             color 0.15s ease,
@@ -645,7 +644,7 @@ with stock_tab:
             st.caption("保有銘柄はありません。")
 
         st.divider()
-        st.markdown("**過去保有銘柄**")
+        st.markdown("**候補銘柄**")
         if past_stocks:
             for stock in past_stocks:
                 yahoo_symbol = get_yahoo_symbol(stock["code"])
@@ -658,7 +657,7 @@ with stock_tab:
                     width="stretch",
                 )
         else:
-            st.caption("過去保有銘柄はありません。")
+            st.caption("候補銘柄はありません。")
 
 dropped_into_holdings = [
     label
