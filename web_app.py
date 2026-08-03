@@ -500,6 +500,50 @@ def show_purchase_dialog(stock):
             st.rerun()
 
 
+@st.dialog("一部売却の確認")
+def show_partial_sale_dialog(stock):
+    current_price = stock.get("current_price", stock["average_price"])
+
+    st.write(f"**{stock['name']}（{stock['code']}）**")
+    st.write(f"現在の保有数：{stock['shares']:,}株")
+    st.write(f"売却単価：{current_price:,.0f}円")
+    sale_shares = st.number_input(
+        "売却株数",
+        min_value=1,
+        max_value=int(stock["shares"]) - 1,
+        value=1,
+        step=1,
+        format="%d",
+    )
+    st.caption(f"売却予定額：{current_price * sale_shares:,.0f}円")
+
+    cancel_col, sale_col = st.columns(2)
+    with cancel_col:
+        if st.button("キャンセル", key="cancel_partial_sale", width="stretch"):
+            st.session_state.pop("pending_partial_sale_code", None)
+            reset_stock_board()
+            st.rerun()
+    with sale_col:
+        if st.button(
+            "売却を確定",
+            key="confirm_partial_sale",
+            type="primary",
+            width="stretch",
+        ):
+            set_share_count(
+                stock,
+                stock["shares"] - int(sale_shares),
+                current_price,
+            )
+            save_stocks(stocks)
+            st.session_state.pop("pending_partial_sale_code", None)
+            reset_stock_board()
+            st.session_state["sale_message"] = (
+                f"{stock['name']}を{int(sale_shares):,}株売却しました。"
+            )
+            st.rerun()
+
+
 @st.dialog("全売却の確認")
 def show_sell_all_dialog(stock):
     current_price = stock.get("current_price", stock["average_price"])
@@ -827,12 +871,29 @@ with stock_tab:
                     with row_columns[index]:
                         render_stock_cell(value, numeric=index > 0, tone="held")
                 with row_columns[-1]:
-                    if st.button(
-                        "全売却",
-                        key=f"sell_all_{stock['code']}",
-                        width="stretch",
-                    ):
-                        st.session_state["pending_sale_code"] = stock["code"]
+                    with st.popover("操作", width="stretch"):
+                        if st.button(
+                            "追加購入",
+                            key=f"add_purchase_{stock['code']}",
+                            width="stretch",
+                        ):
+                            st.session_state["pending_purchase_code"] = stock["code"]
+                            st.rerun()
+                        if st.button(
+                            "一部売却",
+                            key=f"partial_sale_{stock['code']}",
+                            disabled=stock["shares"] <= 1,
+                            width="stretch",
+                        ):
+                            st.session_state["pending_partial_sale_code"] = stock["code"]
+                            st.rerun()
+                        if st.button(
+                            "全売却",
+                            key=f"sell_all_{stock['code']}",
+                            width="stretch",
+                        ):
+                            st.session_state["pending_sale_code"] = stock["code"]
+                            st.rerun()
         else:
             st.markdown(
                 '<div class="stock-empty-state stock-empty-held">'
@@ -935,6 +996,7 @@ with stock_tab:
             )
 
 pending_purchase_code = st.session_state.get("pending_purchase_code")
+pending_partial_sale_code = st.session_state.get("pending_partial_sale_code")
 pending_sale_code = st.session_state.get("pending_sale_code")
 pending_delete_candidate_code = st.session_state.get("pending_delete_candidate_code")
 
@@ -943,10 +1005,19 @@ if pending_purchase_code:
         (stock for stock in stocks if stock["code"] == pending_purchase_code),
         None,
     )
-    if pending_stock is not None and pending_stock["shares"] == 0:
+    if pending_stock is not None:
         show_purchase_dialog(pending_stock)
     else:
         st.session_state.pop("pending_purchase_code", None)
+elif pending_partial_sale_code:
+    pending_stock = next(
+        (stock for stock in stocks if stock["code"] == pending_partial_sale_code),
+        None,
+    )
+    if pending_stock is not None and pending_stock["shares"] > 1:
+        show_partial_sale_dialog(pending_stock)
+    else:
+        st.session_state.pop("pending_partial_sale_code", None)
 elif pending_sale_code:
     pending_stock = next(
         (stock for stock in stocks if stock["code"] == pending_sale_code),
